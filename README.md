@@ -1,1 +1,1 @@
-# Hydra-self-testing, a simplified version in terms of number of species mackerel, herring, spiny dogfish and cod. 
+# Hydra-self-testing, a simplified version with 4 species: mackerel, herring, spiny dogfish and cod. 
