@@ -1,0 +1,7 @@
+"0","#datafile object
+# add switch to read from rda or rds depending on string of input
+#load(""../test-data/hydraDataList.rda"")
+hydraDataList <- readRDS(data_object)
+"
+"2","Error in readRDS(data_object) : object 'data_object' not found
+"
