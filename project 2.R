@@ -51,7 +51,7 @@ catch_size<-catch_size %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
   mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
          label = rep("catch",nrow(.)),
          species = hydraDataList$speciesList[species])# %>% filter(value != -999)
-catch_size<- catch_size %>% filter(value != -999)
+#catch_size<- catch_size %>% filter(value != -999)
 #catch_size$value[which(catch_size$value == -999)] = 0.00001
 
 pred_catch<-output$pred_catch_size
@@ -70,7 +70,7 @@ diet_comp<-diet_comp %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
   mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
     species = hydraDataList$speciesList[species],
     label = rep("diet",nrow(.)))
-diet_comp<- diet_comp  %>% filter(value != -999)
+#diet_comp<- diet_comp  %>% filter(value != -999)
 
 #%>%
 
@@ -128,22 +128,23 @@ dietsample
 ### SIMULATION ###
 
 ##### CATCH and SURVEY BIOMASS ######
-set.seed(seed = 23)
+#set.seed(seed = 23)
 
-temp_catch<-catch_size %>% filter(species == "3" )
+#temp_catch<-catch_size %>% filter(species == "3" )
 
-yr<-1
-year<-unique(catch_size$year)
-catch_sim <- NULL
-for (yr in year) {
-    catch_sim[[yr]] <-  rnorm(100, catch_size$pred_catch, catch_size$cv)
- }
+#yr<-1
+#year<-unique(catch_size$year)
+#catch_sim <- NULL
+#for (yr in year) {
+#    catch_sim[[yr]] <-  rnorm(100, catch_size$pred_catch, catch_size$cv)
+# }
+
+catch_sim <-  rnorm(10, catch$pred_catch, catch$cv)
 
 
 
-
-survey_sim<-rnorm(100, biomass$pred_bio, biomass$cv)
+survey_sim<-rnorm(10, biomass$pred_bio, biomass$cv)
 
 ##### CATCH and SURVEY SIZE COMPOSITION ######
 
-
+cs_sim<-rmultinom(10, catch_size$InpN, catch_size$pred_value)
