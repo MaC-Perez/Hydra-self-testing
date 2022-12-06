@@ -1,6 +1,8 @@
 source("R/read.report.R")
 source("R/gettables.R")
 library(tidyverse)
+library(magrittr)
+library(FSA)
 
 ### READ DATA ###
 
@@ -34,11 +36,11 @@ sim_data <- NULL
 isim <- 1
 
 # replace index with simulated data
-sim_list <- NULL
-sim_list$catch <- obs_catchB %>%
+#hydraDataList <- NULL
+hydraDataList$observedCatch <- obs_catchB %>%
   mutate(obs = rnorm(nrow(.), pred_catch, cv_catch))
 
-sim_data[[isim]] <- sim_list
+sim_data[[isim]] <- hydraDataList
 
 
 ##### SURVEY BIOMASS SIMULATED DATA ######
@@ -46,11 +48,11 @@ sim_data[[isim]] <- sim_list
 pred_survey <- biomass$pred_bio
 cv_survey<-biomass$cv
 
-sim_list$survey <- obs_surveyB %>%
+hydraDataList$observedBiomass <- obs_surveyB %>%
   mutate(obs = (rnorm(nrow(.), pred_survey, cv_survey)))
 
 # store simulated object
-sim_data[[isim]] <- sim_list
+sim_data[[isim]] <- hydraDataList
 
 
 #### CATCH SIZE COMPOSITION SIMULATED DATA ####
@@ -68,7 +70,12 @@ pred_catchsize<-output$pred_catch_size
 nll_catch<-output$nll_catch_size
 
 
-sim_list$catch_size
+hydraDataList$observedCatchSize
+
+#for (irow in 1:nrow(catch_size)) {
+#  new_table[irow, catch_size$value] <- as.numeric(rmultinom(1, catch_size[irow, catch_size$inpN], pred_catchsize[irow,]))
+#}
+
 
 temporal1 = numeric()
 especie = numeric(); especie = sort(unique(catch_size$species)) # especies
@@ -84,7 +91,7 @@ for(e in 1:length(especie)){
 }
 
 catch_size$obs = temporal1
-sim_list$catchsize<-catch_size
+hydraDataList$observedCatchSize<-catch_size
 
 #to check if I am getting the correct values
 #write.csv(catch_size, file = "catch_size.csv", row.names = T)
@@ -104,7 +111,7 @@ surv_size <- select(surv_size, -label)
 pred_survsize<-output$pred_survey_size
 nll_survey<-output$nll_survey_size
 
-sim_list$surv_size
+hydraDataList$observedSurvSize
 
 temporal1 = numeric()
 number = numeric(); number = sort(unique(surv_size$survey))
@@ -127,7 +134,7 @@ year = numeric(); year = sort(unique(surv_size$year[pos0][pos1]))
 
 
 surv_size$obs = temporal1
-sim_list$survsize<-surv_size
+hydraDataList$observedSurvSize<-surv_size
 
 #to check if I am getting the correct values
 #write.csv(surv_size, file = "surv_size.csv", row.names = T)
@@ -152,7 +159,7 @@ if (length(pred_diet)!=nrow(diet_comp)) diet_comp <- diet_comp %>% filter(value 
 nll_diet<-output$nll_dietprop
 
 
-sim_list$diet_comp
+hydraDataList$observedSurvDiet
 
 temporal1 = numeric()
 number = numeric(); number = sort(unique(diet_comp$survey))
@@ -180,7 +187,7 @@ for (n in 1:length(number)) {
 
 
 diet_comp$obs = temporal1
-sim_list$dietcomp<-diet_comp
+hydraDataList$observedSurvDiet<-diet_comp
 
 #to check if I am getting the correct values
 #write.csv(diet_comp, file = "diet_comp.csv", row.names = T)
