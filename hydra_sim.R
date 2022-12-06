@@ -3,6 +3,7 @@ source("R/gettables.R")
 library(tidyverse)
 library(magrittr)
 library(FSA)
+library(hydradata)
 
 ### READ DATA ###
 
@@ -199,15 +200,52 @@ hydraDataList$observedSurvDiet<-diet_comp
 
 
 
+hydradata::create_datpin_files(listOfParameters, dataList)
+
+write_tsDatFile(hydraDataList,listOfParameters)
+
+create_datpin_files(listOfParameters, dataList = hydraDataList)
+
+
+setup_default_inputs(
+     outDir = getwd(),
+     scenarioFlag = "historic",
+     temperatureFlag = "true",
+     scenarioType = "fixed",
+     maxExploitationRate = 30,
+     assessmentSpeciesFlag = "none",
+     outputFilename = "hydra_sim",
+     fillLength = 2000)
 
 
 
 
+setup_default_inputs <- function(outDir = getwd(),scenarioFlag="historic",temperatureFlag="true",scenarioType="fixed",maxExploitationRate=30,assessmentSpeciesFlag="none",outputFilename="hydra_sim",fillLength=2000){
 
+       listOfParameters <- list()
+       listOfParameters$scenarioFlag <- scenarioFlag
+       listOfParameters$temperatureFlag <- temperatureFlag
+       listOfParameters$scenarioType <- scenarioType
+       listOfParameters$maxExploitationRate <- maxExploitationRate
+       listOfParameters$assessmentSpeciesFlag <- assessmentSpeciesFlag
+       listOfParameters$outputFilename <- outputFilename
+       listOfParameters$fillLength <- fillLength # length of line to write to. if not long enough data wraps to next line
+       listOfParameters$outDir <- outDir
 
+       return(listOfParameters)
 
+}
 
+listOfParameters <- list()
+ listOfParameters$scenarioFlag <- scenarioFlag
+ listOfParameters$temperatureFlag <- temperatureFlag
+ listOfParameters$scenarioType <- scenarioType
+ listOfParameters$maxExploitationRate <- maxExploitationRate
+ listOfParameters$assessmentSpeciesFlag <- assessmentSpeciesFlag
+ listOfParameters$outputFilename <- outputFilename
+ listOfParameters$fillLength <- fillLength # length of line to write to. if not long enough data wraps to next line
+ listOfParameters$outDir <- outDir
 
-
+ write_tsDatFile(hydraDataList,listOfParameters)
 
 
