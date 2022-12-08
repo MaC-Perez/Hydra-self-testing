@@ -366,10 +366,10 @@
   0.11 0.11 0.11 0.11
  # M1 - natural mortality (not explained by model)
 #  init_3darray M1(1,Nareas,1,Nspecies,1,Nsizebins)
-  0.1 0.1 0.1 0.1 0.1
-  0.1 0.1 0.1 0.1 0.1
-  0.1 0.1 0.1 0.1 0.1
-  0.1 0.1 0.1 0.1 0.1
+#  0.1 0.1 0.1 0.1 0.1
+#  0.1 0.1 0.1 0.1 0.1
+#  0.1 0.1 0.1 0.1 0.1
+#  0.1 0.1 0.1 0.1 0.1
 #  init_3darray isprey(1,Nareas,1,Nspecies,1,Nspecies)     //preds in columns, prey in rows
   1 0 0 1
   1 1 1 1
@@ -419,7 +419,7 @@
 # init_number scaleInitialN.  used to scale initial yr1N abundances found in .pin file
   1
 # other food term
-  1e+09
+#  1e+09
 #init_matrix effortScaled(1,Nareas,1,Nspecies)
   1 1 1 1
 # init_4darray discard_Coef(1,Nareas,1,Nspecies,1,Nfleets,1,Nsizebins)
