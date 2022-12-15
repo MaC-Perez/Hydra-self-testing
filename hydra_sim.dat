@@ -1,0 +1,46 @@
+# This file was created using create_DataFile.R and used all inputs from csv files found in folder:
+      #createDataFiles_testing/dataInputsHydra
+# init_int debug
+  0
+# init_int Nyrs
+  42
+# init_int Nspecies
+  4
+# init_int Nsizebins
+  5
+# init_int Nareas
+  1
+# init_int Nfleets
+  2
+# init_number wtconv
+  1
+#
+# List of Species in Model
+# Atlantic_cod
+# Atlantic_herring
+# Atlantic_mackerel
+# Spiny_dogfish
+#
+# init_matrix binwidth(1,Nspecies,1,Nsizebins)
+ 	29	29	29	29	29
+ 	8	8	8	8	8
+ 	12	12	12	12	12
+ 	30	30	30	30	30
+# init_vector lenwt_a(1,Nspecies)
+  0.00685681567472357 0.00696289397647208 0.00310242979734439 0.00218691346582327
+# init_vector lenwt_b(1,Nspecies)
+  3.09133638752902 3.08159581281283 3.32100440840157 3.13962578098272
+# init_int Nrecruitment_cov
+  1
+#  init_int Nmaturity_cov 
+  1
+#  init_int Ngrowth_cov
+  1
+#  init_matrix recruitment_cov(1,Nrecruitment_cov,1,Nyrs)
+  1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+#  init_matrix maturity_cov(1,Nmaturity_cov,1,Nyrs)
+  1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+#  init_matrix growth_cov(1,Ngrowth_cov,1,Nyrs)
+  1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+#   init_3darray obs_survey_biomass(1,Nareas,1,Nspecies,1,Nyrs) 
+#   THESE ARE FROM ATLANTIS AND SHOULD NOT BE USED IN FITTING: REPLACE WITH SURVEY DATA
