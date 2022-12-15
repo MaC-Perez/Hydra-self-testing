@@ -1,5 +1,5 @@
 ---
-title: "Hydra comparisons"
+title: "Hydra multimodel comparisons"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
@@ -11,8 +11,8 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
                       knitr.duplicate.label = "allow")
 suppressPackageStartupMessages(library(tidyverse))
 library(ggforce)
-source("R/read.report.R")
-source("R/gettables.R")
+source("../R/read.report.R")
+source("../R/gettables.R")
 
 ```
 
@@ -21,13 +21,13 @@ source("R/gettables.R")
 
 ```{r}
 #datafile object
-hydraDataList <- readRDS("C:/Users/macristina.perez/Documents/GitHub/Hydra-self-testing/inputs/hydra_sim_GBself_5bin.rds")
-#load(data_object)
+#load("../test-data/hydraDataList.rda")
+load(data_object)
 ```
 
 
 ```{r}
-repfiles <- c("/simulated data/sim1/hydra_sim.rep","../simulated data/sim2/hydra_sim.rep")#, "../simulated data/sim3/hydra_sim.rep", "../simulated data/sim4/hydra_sim.rep" ,"../simulated data/sim5/hydra_sim.rep", "../simulated data/sim6/hydra_sim.rep", "../simulated data/sim7/hydra_sim.rep" ,"../simulated data/sim8/hydra_sim.rep", "../simulated data/sim9/hydra_sim.rep", "../simulated data/sim10/hydra_sim.rep" ,"../simulated data/sim11/hydra_sim.rep", "../simulated data/sim12/hydra_sim.rep", "../simulated data/sim13/hydra_sim.rep" ,"../simulated data/sim14/hydra_sim.rep", "../simulated data/sim15/hydra_sim.rep", "../simulated data/sim16/hydra_sim.rep" ,"../simulated data/sim17/hydra_sim.rep", "../simulated data/sim18/hydra_sim.rep", "../simulated data/sim19/hydra_sim.rep" ,"../simulated data/sim20/hydra_sim.rep")
+#repfiles <- c("../test-data/hydra_sim.rep","../test-data/hydra_sim.rep")
 #output<-purrr::map_dfr(repfiles[[1]], reptoRlist, .id = "model")
 output<-purrr::map(repfiles, reptoRlist)
 est_bio <- map(output, "EstBsize") %>%  
@@ -41,7 +41,7 @@ Biomass time series
 ```{r}
 nmodel <- length(repfiles)
 est_bio <- est_bio %>%  #output$EstBsize %>%
- # rowSums() %>% 
+  #rowSums() %>% 
   tibble() %>% 
   mutate(bio = rowSums(across(where(is.numeric)))) %>% 
   mutate(species = rep(rep(hydraDataList$speciesList, each = hydraDataList$Nyrs*5),nmodel),
@@ -49,7 +49,7 @@ est_bio <- est_bio %>%  #output$EstBsize %>%
          year = 0.8 + year / 5,  #5 time steps per year
          log_bio = ifelse(bio>0,log(bio),NA)) %>% 
          #model = as.factor(model)) %>%
-#  I()
+  I()
 #est_bio
 ```
 
