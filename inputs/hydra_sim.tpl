@@ -3192,16 +3192,16 @@ FUNCTION evaluate_the_objective_function
       nll_survey(i) = dlnorm(value, log(pred_survey_index(i)+eps), cv);
     }
    
-  cout << "done survey abundance nll" << endl;
-  if(isinf(value(sum(nll_survey)))) {
-    cout << " INFINITE OBJ FUN" << endl;
-    gavjunk << survey_q << endl;
-    gavjunk << ln_survey_q << endl;
-    gavjunk << "survey biomass data, predicted, residual, nll" << endl;
-  for (int i=1;i<=Nsurvey_obs;i++)
-    gavjunk << obs_survey_biomass(i) << " " << pred_survey_index(i) << " " << resid_survey(i) << " " << nll_survey(i) << endl;
-  exit(-1);
-  }
+  //cout << "done survey abundance nll" << endl;
+  //if(isinf(value(sum(nll_survey)))) {
+  //  cout << " INFINITE OBJ FUN" << endl;
+   // gavjunk << survey_q << endl;
+    //gavjunk << ln_survey_q << endl;
+    //gavjunk << "survey biomass data, predicted, residual, nll" << endl;
+  //for (int i=1;i<=Nsurvey_obs;i++)
+   // gavjunk << obs_survey_biomass(i) << " " << pred_survey_index(i) << " " << resid_survey(i) << " " << nll_survey(i) << endl;
+  //exit(-1);
+  //}
   //
 
  //Survey Catch-at-length
