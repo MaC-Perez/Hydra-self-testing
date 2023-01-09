@@ -14,9 +14,8 @@ source("R/read.report.R")
 source("R/gettables.R")
 ```
 
-### load data objects
 
-```{r, eval=plot_comps}
+```{r, echo=FALSE}
 #datafile object
 
 repfile <- "inputs/hydra_sim.rep"
@@ -24,9 +23,8 @@ hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 ```
 
 ### fitted data
-### load run output
 
-```{r}
+```{r, echo=FALSE}
 output<-reptoRlist(repfile)
 
 obs_surveyB <- hydraDataList$observedBiomass
@@ -39,9 +37,8 @@ indexfits <- gettables(repfile, biorows, catchrows)
 
 ```
 
-#### abundance indices
 
-```{r}
+```{r, echo=FALSE}
 survey_obspred <- indexfits[1][[1]] %>%
   mutate(obs = biomass + 1e-07,
          pred = pred_bio + 1e-07,
@@ -77,7 +74,7 @@ for (surv in unique(survey_obspred$survey)) {
 
 #### catch
 
-```{r}
+```{r, echo=FALSE}
 #catch_obs <- hydraDataList$observedCatch %>% 
 catch_obspred <- indexfits[2][[1]] %>% 
   mutate(obs = catch + 1e-07,
@@ -114,9 +111,7 @@ p3 <- catch_obspred %>%
 
 #### {-}
 
-#### size comps
-
-```{r eval=plot_comps}
+```{r, echo=FALSE}
 obs_survey <- hydraDataList$observedSurvSize %>% tibble()
 obs_survey <- obs_survey %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
   
@@ -136,7 +131,7 @@ colnames(obs_survey) <- c('number','year','species','type','InpN','lenbin','obs_
 
 ```
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 obs_catch <- hydraDataList$observedCatchSize %>% tibble()
 obs_catch<-obs_catch %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
   mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
@@ -156,7 +151,7 @@ colnames(obs_catch) <- c('number','area','year','species','type','InpN','lenbin'
 diet_catch <- bind_rows(obs_catch, obs_survey)
 ```
 
-```{r eval=plot_comps}
+```{r, echo=FALSE}
 obs_diet <- hydraDataList$observedSurvDiet %>% tibble()
 obs_diet<-obs_diet %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
   mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
@@ -195,9 +190,8 @@ temp.diet = mydata[which(mydata$label == "diet"),]
 
 ```
 
-##### surveys 
 
-```{r eval=plot_comps}
+```{r, echo=FALSE}
 #### plot 1 length composition plots by species (survey) ####
 
 # modify to go through each survey
@@ -236,7 +230,7 @@ especies<-unique(long_surv$species)
 
 ##### Size composition of survey 1 by species {.tabset}
 
-```{r, results = 'asis', fig.height=10, fig.width=9, eval=plot_comps}
+```{r, results = 'asis', fig.height=10, fig.width=9}
 for (sp in especies){
   tmp <- plot_surv[[sp]]
   cat("######", sp, " \n")
@@ -247,7 +241,7 @@ for (sp in especies){
 
 ##### {-}
 
-```{r, eval=plot_comps}
+```{r, echo=FALSE}
 
 #### plot 1 length composition plots by species (survey) ####
 
@@ -285,7 +279,7 @@ especies<-unique(long_surv$species)
 
 ##### Size composition of survey 2 by species {.tabset}
 
-```{r, results = 'asis', fig.height=10, fig.width=9, eval=plot_comps}
+```{r, results = 'asis', fig.height=10, fig.width=9}
 for (sp in especies){
   tmp <- plot_surv[[sp]]
   cat("######", sp, " \n")
@@ -298,7 +292,7 @@ for (sp in especies){
 
 ##### Survey size comp Effective sample size {.tabset}
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 survsample <- temp.surv %>%
   tibble() %>% 
   mutate(effN_a = pred_value/(1.-pred_value),
@@ -311,7 +305,7 @@ survsample <- temp.surv %>%
 #survsample
 ```
 
-```{r, results = 'asis', eval=plot_comps}
+```{r, results = 'asis'}
 for (surv in unique(survsample$number)) {
   cat("###### Survey #", surv, " \n")
   p1 <- survsample %>% 
@@ -331,7 +325,7 @@ for (surv in unique(survsample$number)) {
 ##### {-}
 
 ##### Survey size composition pearson residuals (survey 1)
-```{r, eval = plot_comps}
+```{r}
 # need to separate out surveys to run this, inpN differs by survey as does n lenbins with data
 # a hack
 temp.surv.all <- temp.surv
@@ -349,7 +343,7 @@ temp.surv <- temp.surv.all
 ```
 
 ##### Survey size composition pearson residuals (survey 2)
-```{r, eval = plot_comps}
+```{r}
 # need to separate out surveys to run this, inpN differs by survey as does n lenbins with data
 # a hack
 temp.surv.all <- temp.surv
@@ -366,9 +360,8 @@ ggplot(temp.surv, aes(x=year, y=lenbin, size = res_abs, color=factor(residual)))
 temp.surv <- temp.surv.all
 ```
 
-##### Survey OSA residuals
 
-```{r, eval = do_osa}
+```{r, echo=FALSE}
  #sp <- "Atlantic_cod"
 plot_osa <- list()
 especies<-unique(temp.surv$species)
@@ -395,7 +388,7 @@ plot_osa[[sp]] <- res
 ```
 
 ##### Survey 1 OSA residuals {.tabset}
-```{r, eval = do_osa, results = 'asis'}
+```{r, results = 'asis'}
   for (sp in especies) {
   tmp <- plot_osa[[sp]]
   cat("######", sp, " \n")
@@ -407,7 +400,7 @@ plot_osa[[sp]] <- res
 
 ##### {-}
 
-```{r, eval = do_osa}
+```{r, echo=FALSE}
 #sp <- "Atlantic_cod"
 plot_osa <- list()
 especies<-unique(long_surv$species)
@@ -440,7 +433,7 @@ plot_osa[[sp]] <- res
 
 ##### Survey 2 OSA residuals {.tabset}
 
-```{r, eval = do_osa, results = 'asis'}
+```{r, results = 'asis'}
   for (sp in especies) {
   tmp <- plot_osa[[sp]]
   cat("######", sp, " \n")
@@ -453,7 +446,7 @@ plot_osa[[sp]] <- res
 
 ##### catch
 
-```{r, eval=plot_comps}
+```{r, echo=FALSE}
 
 long_catch <- temp.catch %>%
   pivot_longer(cols = c("pred_value","obs_value"),
@@ -490,7 +483,7 @@ for (sp in especies) {
 
 ##### Size composition of catch by species {.tabset}
 
-```{r, results = 'asis', echo = FALSE, fig.height=10, fig.width=9, eval = plot_comps}
+```{r, results = 'asis', echo = FALSE, fig.height=10, fig.width=9}
 for (sp in especies){
   tmp <- plot_catch[[sp]]
   cat("######", sp, " \n")
@@ -503,7 +496,7 @@ for (sp in especies){
 
 ##### Fishery size comp Effective sample size {.tabset}
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 catchsample <- temp.catch %>%
   tibble() %>% 
   mutate(effN_a = pred_value/(1.-pred_value),
@@ -516,7 +509,7 @@ catchsample <- temp.catch %>%
 #catchsample
 ```
 
-```{r, results = 'asis', eval=plot_comps}
+```{r, results = 'asis'}
 for (surv in unique(catchsample$number)) {
   cat("###### Fleet #", surv, " \n")
   p1 <- catchsample %>% 
@@ -535,7 +528,7 @@ for (surv in unique(catchsample$number)) {
 ##### {-}
 
 ##### Catch size composition pearson residuals
-```{r, eval=plot_comps}
+```{r}
 #### plot 3 pearson residuals bubble plot ####
 ### catch, species= 1 to 11
 #tiff(paste0(plotdir,"bubbleplot_catch.jpeg"), width=3000, height=2500, res=250)
@@ -545,9 +538,8 @@ ggplot(temp.catch, aes(x=year, y=lenbin, size = res_abs, color=factor(residual))
 #dev.off()
 ```
 
-##### Fishery Size Comp OSA residuals
 
-```{r, eval = do_osa}
+```{r, echo=FALSE}
 #sp <- "Atlantic_cod"
 plot_osa <- list()
 tempcat1 <- temp.catch %>% 
@@ -577,7 +569,7 @@ plot_osa[[sp]] <- res
 
 ##### Fleet 1 Size composition OSA residuals {.tabset}
 
-```{r, eval = do_osa, results = 'asis'}
+```{r, results = 'asis'}
   for (sp in especies) {
   tmp <- plot_osa[[sp]]
   cat("######", sp, " \n")
@@ -588,7 +580,7 @@ plot_osa[[sp]] <- res
 
 ##### {-}
 
-```{r, eval = do_osa}
+```{r, echo=FALSE}
 #sp <- "Atlantic_cod"
 plot_osa <- list()
 tempcat1 <- temp.catch %>% 
@@ -617,7 +609,7 @@ plot_osa[[sp]] <- res
 
 ##### Fleet 2 Size composition OSA residuals {.tabset}
 
-```{r, eval = do_osa, results = 'asis'}
+```{r, results = 'asis'}
   for (sp in especies) {
   tmp <- plot_osa[[sp]]
   cat("######", sp, " \n")
@@ -632,7 +624,7 @@ plot_osa[[sp]] <- res
 
 ###### Catches
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 #### plot 2 length-comp plots by species aggregated by year (catch and survey) ####
 
 #plotdir <- "outputs/figures/comp_plots/by_year/"
@@ -702,12 +694,15 @@ complot_year<- long_temp2 %>%
   guides(col = guide_legend(nrow = 1))
 
 #ggsave(paste0(plotdir,"complot_year_catch.jpeg"), complot_year)#, width=3000, height=2500, res=250)
+```
+
+```{r}
 print(complot_year)
 ```
 
 ###### Surveys (1)
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 # need to separate out surveys to run this, inpN differs by survey as does n lenbins with data
 # a hack
 temp.surv.all <- temp.surv
@@ -776,14 +771,17 @@ complot_year<- long_temp2 %>%
   guides(col = guide_legend(nrow = 1))
 
 #ggsave(paste0(plotdir,"complot_year_survey.jpeg"), complot_year)#, width=3000, height=2500, res=250)
-print(complot_year)
 
 temp.surv <- temp.surv.all
 ```
 
+```{r}
+print(complot_year)
+```
+
 ###### Surveys (2)
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 # need to separate out surveys to run this, inpN differs by survey as does n lenbins with data
 # a hack
 temp.surv.all <- temp.surv
@@ -852,16 +850,16 @@ complot_year<- long_temp2 %>%
   guides(col = guide_legend(nrow = 1))
 
 #ggsave(paste0(plotdir,"complot_year_survey.jpeg"), complot_year)#, width=3000, height=2500, res=250)
-print(complot_year)
 
 temp.surv <- temp.surv.all
 ```
 
-
-
+```{r}
+print(complot_year)
+```
 #### Diet composition data
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 #plotdir <- "outputs/figures/diet/"
 
 predicted<- as.data.frame(cbind(temp.diet$number, temp.diet$year, temp.diet$species,
@@ -921,20 +919,23 @@ for (sp in especies) {
 }
 ```
 
+
+NOT WORKING
+
 ##### Proportions by weight for stomach by predator size bin survey 1 {.tabset}
 
-```{r, results = 'asis', echo = FALSE, fig.height=10, fig.width=9, eval = plot_comps}
-for (sp in especies){
-  tmp <- plot_diet[[sp]]
-  cat("######", sp, " \n")
-  print(tmp)
-  cat(" \n\n")
-  }
-```
+#```{r, results = 'asis', echo = FALSE, fig.height=10, fig.width=9}
+#for (sp in especies){
+#  tmp <- plot_diet[[sp]]
+#  cat("######", sp, " \n")
+#  print(tmp)
+#  cat(" \n\n")
+#  }
+#```
 
 ##### {-}
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 sp<-1
 nsize <- hydraDataList$Nsizebins
 stringbit <- paste0(rep(1:nsize, each=2),c(".o",".e"))
@@ -984,7 +985,7 @@ for (sp in especies) {
 
 ##### Proportions by weight for stomach by predator size bin survey 2 {.tabset}
 
-```{r, results = 'asis', echo = FALSE, fig.height=10, fig.width=9, eval = plot_comps}
+```{r, results = 'asis', echo = FALSE, fig.height=10, fig.width=9}
 for (sp in especies){
   tmp <- plot_diet[[sp]]
   cat("######", sp, " \n")
@@ -997,7 +998,7 @@ for (sp in especies){
 
 ##### Diet composition effective sample size {.tabset}
 
-```{r, eval = plot_comps}
+```{r, echo=FALSE}
 dietsample <- temp.diet %>%
   tibble() %>% 
   mutate(effN_a = pred_value/(1.-pred_value),
@@ -1010,7 +1011,7 @@ dietsample <- temp.diet %>%
 #dietsample
 ```
 
-```{r, results = 'asis', eval=plot_comps}
+```{r, results = 'asis'}
 for (surv in unique(dietsample$number)) {
   cat("###### Survey #", surv, " \n")
   p1 <- dietsample %>% 
@@ -1025,6 +1026,17 @@ for (surv in unique(dietsample$number)) {
   print(p1)
   cat(" \n\n")
   }
+```
+
+```{r, echo=FALSE}
+est_recruits <- output$EstRec %>%
+  as.data.frame() %>% 
+  mutate(species = hydraDataList$speciesList) %>% 
+  select(species, everything()) %>% 
+  pivot_longer(cols = -species, names_to = "year") %>% 
+  mutate(year = as.integer(str_remove(year, "V")),
+         log_rec = ifelse(value > 0,log(value),NA)) %>% 
+  I()
 ```
 
 ```{r}
@@ -1056,6 +1068,23 @@ est_recruits %>%
 ```
 
 
+```{r, echo=FALSE}
+# time steps per year varies by model, need to save it
+# updated rep file
+stepperyr <- output$Nstepsyr
+if (length(stepperyr)==0) stepperyr <- nrow(output$EstBsize)/hydraDataList$Nyrs/length(hydraDataList$speciesList)
+
+est_bio <- output$EstBsize %>%
+  rowSums() %>% 
+  as.data.frame() %>% 
+  rename(bio = ".") %>% 
+  mutate(species = rep(hydraDataList$speciesList, each = hydraDataList$Nyrs*stepperyr),
+         year  = rep(1:(hydraDataList$Nyrs*stepperyr),hydraDataList$Nspecies),
+         year = (1-1/stepperyr) + year / stepperyr,  #5 time steps per year
+         log_bio = ifelse(bio>0,log(bio),NA)) %>%
+  I()
+```
+
 ```{r}
 est_bio %>% 
   ggplot() +
@@ -1084,6 +1113,20 @@ est_bio %>%
 ```
 
 
+```{r, echo=FALSE}
+est_F <- output$Fyr %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=3:ncol(.), names_to = "year", names_prefix = "V") %>% 
+  rename(species = "V1",
+         fleet = "V2") %>% 
+  mutate(year = as.numeric(year)-2,
+         species = hydraDataList$speciesList[species]) %>% 
+  I()
+#est_F
+
+#we know Atlantis F output is wrong! Do we get the pattern?
+```
+
 ```{r}
 est_F %>% 
   ggplot() +
@@ -1099,10 +1142,9 @@ est_F %>%
 ```
 
 
-
 #### Predation mortality time series
 
-```{r}
+```{r, echo=FALSE}
 nlen <- ncol(output$EstM2size)
 est_M2 <- output$EstM2size %>% 
   as.data.frame() %>% 
@@ -1134,7 +1176,7 @@ est_M2 %>%
 
 #### Survey selectivity
 
-```{r}
+```{r, echo=FALSE}
 survey_sel <- output$survey_sel %>% 
   as.data.frame() %>% 
   pivot_longer(cols = 3:ncol(.), names_prefix = "V", names_to = "ilen") %>% 
@@ -1159,7 +1201,7 @@ survey_sel %>%
 
 #### Fishery selectivity
 
-```{r}
+```{r, echo=FALSE}
 survey_sel <- output$fishsel %>% 
   as.data.frame() %>% 
   pivot_longer(cols = 3:ncol(.), names_prefix = "V", names_to = "ilen") %>% 
