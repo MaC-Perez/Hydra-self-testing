@@ -318,6 +318,7 @@ library(tidyverse)
 
 hydraDataList <- readRDS("C:/Users/macristina.perez/Documents/GitHub/Hydra-self-testing/inputs/hydra_sim_GBself_5bin.rds")
 
+
 repfiles <- c("simulated data/sim1/hydra_sim.rep","simulated data/sim2/hydra_sim.rep",
 "simulated data/sim3/hydra_sim.rep","simulated data/sim4/hydra_sim.rep" ,"simulated data/sim5/hydra_sim.rep",
 "simulated data/sim6/hydra_sim.rep", "simulated data/sim7/hydra_sim.rep" ,"simulated data/sim8/hydra_sim.rep",
@@ -331,10 +332,27 @@ repfiles <- c("simulated data/sim1/hydra_sim.rep","simulated data/sim2/hydra_sim
 "simulated data/sim30/hydra_sim.rep")
 
 
-output<-purrr::map(repfiles, reptoRlist)
+output_est<-purrr::map(repfiles, reptoRlist)
 nmodel <- length(repfiles)
 
-est_survey <- map(output, "survey") %>%
+F_true<-output$EstFsize
+
+F_true<- as.data.frame(F_true)  %>%
+  rename(sizebin1 = 'V1', sizebin2 = 'V2', sizebin3 = 'V3', sizebin4 = 'V4', sizebin5 = 'V5')
+
+F_true <- F_true %>%  #output$EstBsize %>%
+  # rowSums() %>%
+  tibble() %>%
+  mutate(Ftot = rowSums(across(where(is.numeric)))/5) %>%
+  mutate(species = (rep(hydraDataList$speciesList, each = hydraDataList$Nyrs)),
+         year  = (rep(1:(hydraDataList$Nyrs),4)),
+#         #year = 0.8 + year / 5,  #5 time steps per year
+         log_F = ifelse(Ftot>0,log(Ftot),NA))
+
+FF<-rep(F_true$Ftot,times=30)
+
+
+est_survey <- map(output_est, "survey") %>%
   #walk(as.data.frame) %>%
   map_dfr(as.data.frame, .id = "model")
 
@@ -344,11 +362,11 @@ est_survey<- est_survey %>%
 
 surv1plot<-est_survey %>% filter(survey==1)%>%
   ggplot() +
-  aes(x = year, y = log(pred_value), col = n_sim) +
+  aes(x = year, y = (pred_value), col = n_sim) +
   geom_line() +
   facet_wrap(~species, scales = "free") +
-  geom_point(aes(x=year, y=log(obs_value)), col = "red")+
-  geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
+  #geom_point(aes(x=year, y=log(obs_value)), col = "red")+
+  #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
   theme_minimal() +
   labs(x = "Year",
        y = "Biomass (t)",
@@ -372,7 +390,7 @@ surv2plot<-est_survey %>% filter(survey==2)%>%
 print(surv2plot)
 
 
-est_catch <- map(output, "catch") %>%
+est_catch <- map(output_est, "catch") %>%
   #walk(as.data.frame) %>%
   map_dfr(as.data.frame, .id = "model")
 
@@ -410,7 +428,7 @@ fleet2plot<-est_catch %>% filter(fleet==2)%>%
 print(fleet2plot)
 
 
-est_F <- map(output, "EstFsize") %>%
+est_F <- map(output_est, "EstFsize") %>%
   #walk(as.data.frame) %>%
   map_dfr(as.data.frame, .id = "model")
 
@@ -430,16 +448,66 @@ est_F <- est_F %>%  #output$EstBsize %>%
 
 ftot1plot<-est_F %>%
   ggplot() +
-  aes(x = year, y = Ftot, col = model) +
+  aes(x = year, y = Ftot/mean(Ftot), col = model) +
   geom_line() +
   facet_wrap(~species, scales = "free") +
   geom_line() +
+  geom_point(aes(x=year, y=FF/mean(FF)), col = "red")+
+  #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
   theme_minimal() +
   labs(x = "Year",
        y = "Ftot (year-1)",
        title = "Time series of estimated fishing mortality")
 
 print(ftot1plot)
+
+
+est_M2 <- map(output_est, "EstM2size") %>%
+  #walk(as.data.frame) %>%
+  map_dfr(as.data.frame, .id = "model")
+
+est_M2<- est_M2 %>%
+  rename(model = 'model', sizebin1 = 'V1', sizebin2 = 'V2', sizebin3 = 'V3', sizebin4 = 'V4', sizebin5 = 'V5')
+
+est_M2 <- est_M2 %>%  #output$EstBsize %>%
+  # rowSums() %>%
+  tibble() %>%
+  mutate(M2 = rowSums(across(where(is.numeric)))) %>%
+  mutate(species = rep(rep(hydraDataList$speciesList, each = hydraDataList$Nyrs),nmodel),
+         year  = rep(rep(1:(hydraDataList$Nyrs),4),nmodel),
+         #year = 0.8 + year / 5,  #5 time steps per year
+         log_M2 = ifelse(M2>0,log(M2),NA))
+#model = as.factor(model)) %>%
+
+M2_true<-output$EstM2size
+
+M2_true<- as.data.frame(M2_true)  %>%
+  rename(sizebin1 = 'V1', sizebin2 = 'V2', sizebin3 = 'V3', sizebin4 = 'V4', sizebin5 = 'V5')
+
+M2_true <- M2_true %>%  #output$EstBsize %>%
+  # rowSums() %>%
+  tibble() %>%
+  mutate(M2 = rowSums(across(where(is.numeric)))) %>%
+  mutate(species = (rep(hydraDataList$speciesList, each = hydraDataList$Nyrs)),
+         year  = (rep(1:(hydraDataList$Nyrs),4)),
+         #         #year = 0.8 + year / 5,  #5 time steps per year
+         log_M2 = ifelse(M2>0,log(M2),NA))
+
+pred_mort<-rep(M2_true$M2,times=30)
+
+M2plot<-est_M2 %>% #select(year, species, model, sizebin5, M2) %>%
+  ggplot() +
+  aes(x = year, y = M2/mean(M2), col = model) +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  geom_line() +
+  geom_point(aes(x=year, y=pred_mort/mean(pred_mort)), col = "red")+
+  theme_minimal() +
+  labs(x = "Year",
+       y = "M2 (year-1)",
+       title = "Time series of estimated natural mortality")
+
+print(M2plot)
 
 
 survey_obspred<-indexfits[1][[1]]%>%
@@ -511,5 +579,10 @@ p4 <- catch_obspred %>%
   theme_bw() +
   guides(species = "None")
 print(p4)
+
+
+
+
+
 
 
