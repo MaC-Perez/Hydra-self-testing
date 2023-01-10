@@ -34,7 +34,6 @@ biorows <- dim(obs_surveyB)[1]
 catchrows <- dim(obs_catchB)[1]
 #
 indexfits <- gettables(repfile, biorows, catchrows)
-
 ```
 
 
@@ -924,14 +923,14 @@ NOT WORKING
 
 ##### Proportions by weight for stomach by predator size bin survey 1 {.tabset}
 
-#```{r, results = 'asis', echo = FALSE, fig.height=10, fig.width=9}
-#for (sp in especies){
-#  tmp <- plot_diet[[sp]]
-#  cat("######", sp, " \n")
-#  print(tmp)
-#  cat(" \n\n")
-#  }
-#```
+```{r, results = 'asis', echo = FALSE, fig.height=10, fig.width=9}
+for (sp in especies){
+  tmp <- plot_diet[[sp]]
+  cat("######", sp, " \n")
+  print(tmp)
+  cat(" \n\n")
+  }
+```
 
 ##### {-}
 
