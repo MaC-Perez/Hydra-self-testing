@@ -6,18 +6,18 @@ library(tidyverse)
 library(hydradata)
 
 
-setup_default_inputs(
-  outDir = getwd(),
-  scenarioFlag = "historic",
-  temperatureFlag = "true",
-  scenarioType = "fixed",
-  maxExploitationRate = 30,
-  assessmentSpeciesFlag = "none",
-  outputFilename = "hydra_sim",
-  fillLength = 2000)
+#setup_default_inputs(
+outDir = getwd()#,
+scenarioFlag = "historic"#,
+temperatureFlag = "true"#,
+scenarioType = "fixed"#,
+maxExploitationRate = 30#,
+assessmentSpeciesFlag = "none"#,
+outputFilename = "hydra_sim"#,
+fillLength = 2000#)
 
 setup_default_inputs <- function(outDir = getwd(),scenarioFlag="historic",temperatureFlag="true",scenarioType="fixed",maxExploitationRate=30,assessmentSpeciesFlag="none",outputFilename="hydra_sim",fillLength=2000){
-
+  
   listOfParameters <- list()
   listOfParameters$scenarioFlag <- scenarioFlag
   listOfParameters$temperatureFlag <- temperatureFlag
@@ -27,9 +27,9 @@ setup_default_inputs <- function(outDir = getwd(),scenarioFlag="historic",temper
   listOfParameters$outputFilename <- outputFilename
   listOfParameters$fillLength <- fillLength # length of line to write to. if not long enough data wraps to next line
   listOfParameters$outDir <- outDir
-
+  
   return(listOfParameters)
-
+  
 }
 
 listOfParameters <- list()
@@ -43,15 +43,13 @@ listOfParameters$fillLength <- fillLength # length of line to write to. if not l
 listOfParameters$outDir <- outDir
 
 
-### READ DATA ###
+### READ OBSERVED DATA ###
 
-hydraDataList <- readRDS("C:/Users/macristina.perez/Documents/GitHub/Hydra-self-testing/inputs/hydra_sim_GBself_5bin.rds")
-
-#load("test-data/hydraDataList.rda")
-repfile <- c("test-data/hydra_sim_GBself_5bin.rep")
+hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
+repfile <- "inputs/initial_run/hydra_sim.rep"
 output<-reptoRlist(repfile)
 
-### CATCH AND SURVEY BIOMASS ###
+### CATCH AND SURVEY OBSERVED BIOMASS ###
 obs_surveyB <- hydraDataList$observedBiomass
 obs_catchB <- hydraDataList$observedCatch
 
@@ -61,7 +59,7 @@ catchrows <- dim(obs_catchB)[1]
 indexfits <- gettables(repfile, biorows, catchrows)
 
 biomass<-indexfits[[1]] %>%
-          mutate(species = hydraDataList$speciesList[species])
+  mutate(species = hydraDataList$speciesList[species])
 
 catch<-indexfits[[2]]%>%
   mutate(species = hydraDataList$speciesList[species])
@@ -77,56 +75,56 @@ survey_obspred <- indexfits[1][[1]] %>%
          obs_hi = exp(log_hi),
          species = hydraDataList$speciesList[species])
 
-  p1 <- survey_obspred %>%
-    filter(survey == survey) %>%
-    ggplot() +
-    aes(x= year, y = log_obs, group = species, col=factor(survey)) +
-    geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
-    geom_point() +
-    geom_line(aes(x=year, y=log_pred), col = "blue") +
-    facet_wrap(~species, scales = "free_y") +
-    theme_bw() +
-    guides(species = "None")
- print(p1)
+p1 <- survey_obspred %>%
+  filter(survey == survey) %>%
+  ggplot() +
+  aes(x= year, y = log_obs, group = species, col=factor(survey)) +
+  geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
+  geom_point() +
+  geom_line(aes(x=year, y=log_pred), col = "blue") +
+  facet_wrap(~species, scales = "free_y") +
+  theme_bw() +
+  guides(species = "None")
+#print(p1)
 
-  catch_obspred <- indexfits[2][[1]] %>%
-    mutate(obs = catch + 1e-07,
-           pred = pred_catch + 1e-07,
-           log_obs = log(obs),
-           log_pred = log(pred),
-           log_lo = log_obs - 1.96*cv,
-           log_hi = log_obs + 1.96*cv,
-           obs_lo = exp(log_lo),
-           obs_hi = exp(log_hi),
-           species = hydraDataList$speciesList[species])
+catch_obspred <- indexfits[2][[1]] %>%
+  mutate(obs = catch + 1e-07,
+         pred = pred_catch + 1e-07,
+         log_obs = log(obs),
+         log_pred = log(pred),
+         log_lo = log_obs - 1.96*cv,
+         log_hi = log_obs + 1.96*cv,
+         obs_lo = exp(log_lo),
+         obs_hi = exp(log_hi),
+         species = hydraDataList$speciesList[species])
 
 
-  p2 <- catch_obspred %>%
-    filter(fishery == fishery,
-           catch > 0) %>%
-    ggplot() +
-    aes(x= year, y = log_obs, group = species, col= factor(fishery)) +
-    geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
-    geom_point() +
-    geom_line(aes(x=year, y=log_pred), col = "blue") +
-    facet_wrap(~species, scales = "free_y") +
-    theme_bw() +
-    guides(species = "None")
-  print(p2)
+p2 <- catch_obspred %>%
+  filter(fishery == fishery,
+         catch > 0) %>%
+  ggplot() +
+  aes(x= year, y = log_obs, group = species, col= factor(fishery)) +
+  geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
+  geom_point() +
+  geom_line(aes(x=year, y=log_pred), col = "blue") +
+  facet_wrap(~species, scales = "free_y") +
+  theme_bw() +
+  guides(species = "None")
+#print(p2)
 
-  ##### CATCH SIMULATED DATA ######
-
+##### CATCH SIMULATED DATA ######
 # create simulation object
 sim_data <- NULL
 isim <- 1
 
 #for (isim in 1:10) {
 
-  pred_catch <- catch$pred_catch
-  cv_catch<-catch$cv
+pred_catch <- catch$pred_catch
+cv_catch<-catch$cv
 
 # replace index with simulated data
 #hydraDataList <- NULL
+
 hydraDataList$observedCatch <- obs_catchB %>%
   mutate(catch = rnorm(nrow(.), pred_catch,  cv_catch))
 
@@ -151,7 +149,7 @@ catch_size <- hydraDataList$observedCatchSize %>% tibble()
 catch_size<-catch_size %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
   mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
          label = rep("catch",nrow(.)))#,
-         #species = hydraDataList$speciesList[species])# %>% filter(value != -999)
+#species = hydraDataList$speciesList[species])# %>% filter(value != -999)
 #catch_size<- catch_size %>% filter(value != -999)
 catch_size$value[which(catch_size$value == -999)] = 0.000001
 catch_size <- select(catch_size, -label)
@@ -174,7 +172,7 @@ for(e in 1:length(especie)){
   year = numeric(); year = sort(unique(catch_size$year[pos1]))
   for(y in 1:length(year)){
     pos2 = numeric(); pos2 = which(catch_size$year[pos1]== year[y])
-
+    
     temp = numeric(); temp = rmultinom(1, unique(catch_size$inpN[pos1][pos2]), pred_catchsize[pos1][pos2])
     temporal1 = c(temporal1, temp)
   }
@@ -186,7 +184,7 @@ hydraDataList$observedCatchSize<-catch_size
 hydraDataList$observedCatchSize["value"]<-hydraDataList$observedCatchSize["value"]/hydraDataList$observedCatchSize["inpN"]
 
 hydraDataList$observedCatchSize<-hydraDataList$observedCatchSize %>% pivot_wider(names_from = "lenbin") %>%
-                           rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
+  rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
 
 #hydraDataList$observedCatchSize  %>% replace_na(list(sizebin1 = 0, sizebin2 = 0, sizebin3 = 0, sizebin4 = 0, sizebin5 = 0))
 
@@ -198,10 +196,10 @@ hydraDataList$observedCatchSize<-hydraDataList$observedCatchSize %>% pivot_wider
 
 surv_size <- hydraDataList$observedSurvSize %>% tibble()
 surv_size <- surv_size %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
-
+  
   mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
          label = rep("survey",nrow(.)))#,
-         #species = hydraDataList$speciesList[species])
+#species = hydraDataList$speciesList[species])
 #surv_size<- surv_size %>% filter(value != -999)
 surv_size$value[which(surv_size$value == -999)] = 0.000001
 surv_size <- select(surv_size, -label)
@@ -213,22 +211,22 @@ hydraDataList$observedSurvSize
 
 temporal1 = numeric()
 number = numeric(); number = sort(unique(surv_size$survey))
-  for (n in 1:length(number)) {
-      pos0 = numeric(); pos0 = which(surv_size$survey == number[n])
-
-especie = numeric(); especie = sort(unique(surv_size$species[pos0])) # especies
-for(e in 1:length(especie)){
-  pos1 = numeric(); pos1 = which(surv_size$species[pos0] == especie[e])
-
-year = numeric(); year = sort(unique(surv_size$year[pos0][pos1]))
-  for(y in 1:length(year)){
-    pos2 = numeric(); pos2 = which(surv_size$year[pos0][pos1]== year[y])
-
-    temp = numeric(); temp = rmultinom(1, unique(surv_size$inpN[pos0][pos1][pos2]), pred_survsize[pos0][pos1][pos2])
-    temporal1 = c(temporal1, temp)
+for (n in 1:length(number)) {
+  pos0 = numeric(); pos0 = which(surv_size$survey == number[n])
+  
+  especie = numeric(); especie = sort(unique(surv_size$species[pos0])) # especies
+  for(e in 1:length(especie)){
+    pos1 = numeric(); pos1 = which(surv_size$species[pos0] == especie[e])
+    
+    year = numeric(); year = sort(unique(surv_size$year[pos0][pos1]))
+    for(y in 1:length(year)){
+      pos2 = numeric(); pos2 = which(surv_size$year[pos0][pos1]== year[y])
+      
+      temp = numeric(); temp = rmultinom(1, unique(surv_size$inpN[pos0][pos1][pos2]), pred_survsize[pos0][pos1][pos2])
+      temporal1 = c(temporal1, temp)
+    }
   }
 }
-  }
 
 surv_size$value = temporal1
 hydraDataList$observedSurvSize<-surv_size
@@ -268,26 +266,27 @@ temporal1 = numeric()
 number = numeric(); number = sort(unique(diet_comp$survey))
 for (n in 1:length(number)) {
   pos0 = numeric(); pos0 = which(diet_comp$survey == number[n])
-
+  
   species = numeric(); species = sort(unique(diet_comp$species[pos0])) # especies
-    for(e in 1:length(species)){
-      pos1 = numeric(); pos1 = which(diet_comp$species[pos0] == species[e])
-
-  year = numeric(); year = sort(unique(diet_comp$year[pos0][pos1]))
+  for(e in 1:length(species)){
+    pos1 = numeric(); pos1 = which(diet_comp$species[pos0] == species[e])
+    
+    year = numeric(); year = sort(unique(diet_comp$year[pos0][pos1]))
     for(y in 1:length(year)){
       pos2 = numeric(); pos2 = which(diet_comp$year[pos0][pos1]== year[y])
-
-  lenbin = numeric(); lenbin = sort(unique(diet_comp$sizebin[pos0][pos1][pos2]))
-    for(l in 1:length(lenbin)){
-      pos3 = numeric(); pos3 = which(diet_comp$sizebin[pos0][pos1][pos2] == lenbin[l])
-
-    temp = numeric(); temp = rmultinom(1, unique(diet_comp$inpN[pos0][pos1][pos2][pos3]), diet_comp$value[pos0][pos1][pos2][pos3])
-    temporal1 = c(temporal1, temp)
+      
+      lenbin = numeric(); lenbin = sort(unique(diet_comp$sizebin[pos0][pos1][pos2]))
+      for(l in 1:length(lenbin)){
+        pos3 = numeric(); pos3 = which(diet_comp$sizebin[pos0][pos1][pos2] == lenbin[l])
+        
+        temp = numeric(); temp = rmultinom(1, unique(diet_comp$inpN[pos0][pos1][pos2][pos3]), diet_comp$value[pos0][pos1][pos2][pos3])
+        temporal1 = c(temporal1, temp)
       }
     }
-   }
- }
+  }
+}
 
+# replace data with simulated data
 
 diet_comp$value = temporal1
 hydraDataList$observedSurvDiet<-diet_comp
@@ -298,38 +297,47 @@ hydraDataList$observedSurvDiet<-hydraDataList$observedSurvDiet %>% pivot_wider(n
 #to check if I am getting the correct values
 #write.csv(diet_comp, file = "diet_comp.csv", row.names = T)
 
+# use write_tsDatFile function to save the new ts file with simulated data 
+#n sim equal to scenario identifier from 1 to 30 simulations 
+
+###### NEED TO CHANGE THE CODE TO CREATE 100 TS FILES AUTOMATICALLY 
+source("R/write_tsDatFile.R")
+
 nsim<-17
 
- write_tsDatFile(hydraDataList,listOfParameters)
+write_tsDatFile(hydraDataList,listOfParameters)
 
 
 #}
 
+# Here is where I have the problem to run 100 sim at the same time ... I think it's because I am using the same name for my 
+# HydraDataList object 
 
 
- ########################################
- ######### DIAGNOSTICS ##################
- ########################################
+
+########################################
+######### DIAGNOSTICS ##################
+########################################
 
 source("R/read.report.R")
 source("R/gettables.R")
 library(ggforce)
 library(tidyverse)
 
-hydraDataList <- readRDS("C:/Users/macristina.perez/Documents/GitHub/Hydra-self-testing/inputs/hydra_sim_GBself_5bin.rds")
+hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 
 
 repfiles <- c("simulated data/sim1/hydra_sim.rep","simulated data/sim2/hydra_sim.rep",
-"simulated data/sim3/hydra_sim.rep","simulated data/sim4/hydra_sim.rep" ,"simulated data/sim5/hydra_sim.rep",
-"simulated data/sim6/hydra_sim.rep", "simulated data/sim7/hydra_sim.rep" ,"simulated data/sim8/hydra_sim.rep",
-"simulated data/sim9/hydra_sim.rep", "simulated data/sim10/hydra_sim.rep" ,"simulated data/sim11/hydra_sim.rep",
-"simulated data/sim12/hydra_sim.rep", "simulated data/sim13/hydra_sim.rep" ,"simulated data/sim14/hydra_sim.rep",
-"simulated data/sim15/hydra_sim.rep", "simulated data/sim16/hydra_sim.rep" ,"simulated data/sim17/hydra_sim.rep",
-"simulated data/sim18/hydra_sim.rep", "simulated data/sim19/hydra_sim.rep" ,"simulated data/sim20/hydra_sim.rep",
-"simulated data/sim21/hydra_sim.rep", "simulated data/sim22/hydra_sim.rep" ,"simulated data/sim23/hydra_sim.rep",
-"simulated data/sim24/hydra_sim.rep", "simulated data/sim25/hydra_sim.rep" ,"simulated data/sim26/hydra_sim.rep",
-"simulated data/sim27/hydra_sim.rep", "simulated data/sim28/hydra_sim.rep" ,"simulated data/sim29/hydra_sim.rep",
-"simulated data/sim30/hydra_sim.rep")
+              "simulated data/sim3/hydra_sim.rep","simulated data/sim4/hydra_sim.rep" ,"simulated data/sim5/hydra_sim.rep",
+              "simulated data/sim6/hydra_sim.rep", "simulated data/sim7/hydra_sim.rep" ,"simulated data/sim8/hydra_sim.rep",
+              "simulated data/sim9/hydra_sim.rep", "simulated data/sim10/hydra_sim.rep" ,"simulated data/sim11/hydra_sim.rep",
+              "simulated data/sim12/hydra_sim.rep", "simulated data/sim13/hydra_sim.rep" ,"simulated data/sim14/hydra_sim.rep",
+              "simulated data/sim15/hydra_sim.rep", "simulated data/sim16/hydra_sim.rep" ,"simulated data/sim17/hydra_sim.rep",
+              "simulated data/sim18/hydra_sim.rep", "simulated data/sim19/hydra_sim.rep" ,"simulated data/sim20/hydra_sim.rep",
+              "simulated data/sim21/hydra_sim.rep", "simulated data/sim22/hydra_sim.rep" ,"simulated data/sim23/hydra_sim.rep",
+              "simulated data/sim24/hydra_sim.rep", "simulated data/sim25/hydra_sim.rep" ,"simulated data/sim26/hydra_sim.rep",
+              "simulated data/sim27/hydra_sim.rep", "simulated data/sim28/hydra_sim.rep" ,"simulated data/sim29/hydra_sim.rep",
+              "simulated data/sim30/hydra_sim.rep")
 
 
 output_est<-purrr::map(repfiles, reptoRlist)
@@ -346,7 +354,7 @@ F_true <- F_true %>%  #output$EstBsize %>%
   mutate(Ftot = rowSums(across(where(is.numeric)))/5) %>%
   mutate(species = (rep(hydraDataList$speciesList, each = hydraDataList$Nyrs)),
          year  = (rep(1:(hydraDataList$Nyrs),4)),
-#         #year = 0.8 + year / 5,  #5 time steps per year
+         #         #year = 0.8 + year / 5,  #5 time steps per year
          log_F = ifelse(Ftot>0,log(Ftot),NA))
 
 FF<-rep(F_true$Ftot,times=30)
@@ -443,7 +451,7 @@ est_F <- est_F %>%  #output$EstBsize %>%
          year  = rep(rep(1:(hydraDataList$Nyrs),4),nmodel),
          #year = 0.8 + year / 5,  #5 time steps per year
          log_F = ifelse(Ftot>0,log(Ftot),NA))
-  #model = as.factor(model)) %>%
+#model = as.factor(model)) %>%
 
 
 ftot1plot<-est_F %>%
@@ -512,14 +520,14 @@ print(M2plot)
 
 survey_obspred<-indexfits[1][[1]]%>%
   mutate(obs = biomass + 1e-07,
-  pred = pred_bio + 1e-07,
-  log_obs = log(obs),
-  log_pred = log(pred),
-  log_lo = log_obs - 1.96*cv,
-  log_hi = log_obs + 1.96*cv,
-  obs_lo = exp(log_lo),
-  obs_hi = exp(log_hi),
-  species = hydraDataList$speciesList[species])
+         pred = pred_bio + 1e-07,
+         log_obs = log(obs),
+         log_pred = log(pred),
+         log_lo = log_obs - 1.96*cv,
+         log_hi = log_obs + 1.96*cv,
+         obs_lo = exp(log_lo),
+         obs_hi = exp(log_hi),
+         species = hydraDataList$speciesList[species])
 
 p1 <- survey_obspred %>%
   filter(survey == 1) %>%
