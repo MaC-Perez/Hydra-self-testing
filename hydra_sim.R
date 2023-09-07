@@ -36,169 +36,169 @@ sim_data <- NULL
 isim <- 1
 
 for (isim in 1:100) { # 5 just to try 
-
-# replace index with simulated data
-
-
-hydraDataList$observedCatch <- obs_catchB %>%
-  mutate(catch = rnorm(nrow(.), indexfits[[2]]$pred_catch,indexfits[[2]]$cv))
-
-sim_data[[isim]] <- hydraDataList
-
-
-##### SIMULATE SURVEY BIOMASS DATA ######
-hydraDataList$observedBiomass <- obs_surveyB %>%
-  mutate(biomass = (rnorm(nrow(.), indexfits[[1]]$pred_bio, indexfits[[1]]$cv)))
-# store simulated object
-sim_data[[isim]] <- hydraDataList
-
-
-#### SIMULATE CATCH SIZE COMPOSITION DATA ####
-
-obscatch_size <- hydraDataList$observedCatchSize %>% tibble()
-obscatch_size<-obscatch_size %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
-  mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-         label = rep("catch",nrow(.)))#,
-#species = hydraDataList$speciesList[species])# %>% filter(value != -999)
-#obscatch_size<- obscatch_size %>% filter(value != -999)
-obscatch_size$value[which(obscatch_size$value == -999)] = 0.000001
-obscatch_size <- select(obscatch_size, -label)
-
-pred_catchsize<-output$pred_catch_size
-nll_catch<-output$nll_catch_size
-
-#hydraDataList$observedCatchSize <- obscatch_size %>% 
-#  mutate(value = (rmultinom(1, obscatch_size$inpN, pred_catchsize)))
-# store simulated object
-#sim_data[[isim]] <- hydraDataList
-
-temporal1 = numeric()
-especie = numeric(); especie = sort(unique(obscatch_size$species)) # especies
-for(e in 1:length(especie)){
-  pos1 = numeric(); pos1 = which(obscatch_size$species == especie[e])
-  year = numeric(); year = sort(unique(obscatch_size$year[pos1]))
-  for(y in 1:length(year)){
-    pos2 = numeric(); pos2 = which(obscatch_size$year[pos1]== year[y])
-    
-    temp = numeric(); temp = rmultinom(1, unique(obscatch_size$inpN[pos1][pos2]), pred_catchsize[pos1][pos2])
-    temporal1 = c(temporal1, temp)
-  }
-}
-
-obscatch_size$value = temporal1
-hydraDataList$observedCatchSize<-obscatch_size
-
-hydraDataList$observedCatchSize["value"]<-hydraDataList$observedCatchSize["value"]/hydraDataList$observedCatchSize["inpN"]
-
-hydraDataList$observedCatchSize<-hydraDataList$observedCatchSize %>% pivot_wider(names_from = "lenbin") %>%
-  rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
-
-
-#### SIMULATE SURVEY SIZE COMPOSITION DATA ####
-
-obssurv_size <- hydraDataList$observedSurvSize %>% tibble()
-obssurv_size <- obssurv_size %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
   
-  mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-         label = rep("survey",nrow(.)))#,
-#species = hydraDataList$speciesList[species])
-#surv_size<- surv_size %>% filter(value != -999)
-obssurv_size$value[which(obssurv_size$value == -999)] = 0.000001
-obssurv_size <- select(obssurv_size, -label)
-
-pred_survsize<-output$pred_survey_size
-nll_survey<-output$nll_survey_size
-
-#hydraDataList$observedSurvSize <- obssurv_size %>% 
-#  mutate(value = (rmultinom(1, obssurv_size$inpN, pred_survsize)))
-# store simulated object
-#sim_data[[isim]] <- hydraDataList
-
-temporal1 = numeric()
-number = numeric(); number = sort(unique(obssurv_size$survey))
-for (n in 1:length(number)) {
-  pos0 = numeric(); pos0 = which(obssurv_size$survey == number[n])
+  # replace index with simulated data
   
-  especie = numeric(); especie = sort(unique(obssurv_size$species[pos0])) # especies
+  
+  hydraDataList$observedCatch <- obs_catchB %>%
+    mutate(catch = rnorm(nrow(.), indexfits[[2]]$pred_catch,indexfits[[2]]$cv))
+  
+  sim_data[[isim]] <- hydraDataList
+  
+  
+  ##### SIMULATE SURVEY BIOMASS DATA ######
+  hydraDataList$observedBiomass <- obs_surveyB %>%
+    mutate(biomass = (rnorm(nrow(.), indexfits[[1]]$pred_bio, indexfits[[1]]$cv)))
+  # store simulated object
+  sim_data[[isim]] <- hydraDataList
+  
+  
+  #### SIMULATE CATCH SIZE COMPOSITION DATA ####
+  
+  obscatch_size <- hydraDataList$observedCatchSize %>% tibble()
+  obscatch_size<-obscatch_size %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
+    mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
+           label = rep("catch",nrow(.)))#,
+  #species = hydraDataList$speciesList[species])# %>% filter(value != -999)
+  #obscatch_size<- obscatch_size %>% filter(value != -999)
+  obscatch_size$value[which(obscatch_size$value == -999)] = 0.000001
+  obscatch_size <- select(obscatch_size, -label)
+  
+  pred_catchsize<-output$pred_catch_size
+  nll_catch<-output$nll_catch_size
+  
+  #hydraDataList$observedCatchSize <- obscatch_size %>% 
+  #  mutate(value = (rmultinom(1, obscatch_size$inpN, pred_catchsize)))
+  # store simulated object
+  #sim_data[[isim]] <- hydraDataList
+  
+  temporal1 = numeric()
+  especie = numeric(); especie = sort(unique(obscatch_size$species)) # especies
   for(e in 1:length(especie)){
-    pos1 = numeric(); pos1 = which(obssurv_size$species[pos0] == especie[e])
-    
-    year = numeric(); year = sort(unique(obssurv_size$year[pos0][pos1]))
+    pos1 = numeric(); pos1 = which(obscatch_size$species == especie[e])
+    year = numeric(); year = sort(unique(obscatch_size$year[pos1]))
     for(y in 1:length(year)){
-      pos2 = numeric(); pos2 = which(obssurv_size$year[pos0][pos1]== year[y])
+      pos2 = numeric(); pos2 = which(obscatch_size$year[pos1]== year[y])
       
-      temp = numeric(); temp = rmultinom(1, unique(obssurv_size$inpN[pos0][pos1][pos2]), pred_survsize[pos0][pos1][pos2])
+      temp = numeric(); temp = rmultinom(1, unique(obscatch_size$inpN[pos1][pos2]), pred_catchsize[pos1][pos2])
       temporal1 = c(temporal1, temp)
     }
   }
-}
-
-obssurv_size$value = temporal1
-hydraDataList$observedSurvSize<-obssurv_size
-
-hydraDataList$observedSurvSize["value"]<-hydraDataList$observedSurvSize["value"]/hydraDataList$observedSurvSize["inpN"]
-
-hydraDataList$observedSurvSize<-hydraDataList$observedSurvSize %>% pivot_wider(names_from = "lenbin") %>%
-  rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
-
-#to check if I am getting the correct values
-#write.csv(surv_size, file = "surv_size.csv", row.names = T)
-
-
-#### SIMULATE DIET COMPOSITION DATA ####
-
-obsdiet_comp <- hydraDataList$observedSurvDiet %>% tibble()
-obsdiet_comp<-obsdiet_comp %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
-  mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
-    #species = hydraDataList$speciesList[species],
-    label = rep("diet",nrow(.)))
-obsdiet_comp$value[which(obsdiet_comp$value == -999)] = 0.000001
-obsdiet_comp <- select(obsdiet_comp, -label)
-
-pred_diet<-output$pred_dietprop
-if (length(pred_diet)!=nrow(obsdiet_comp)) obsdiet_comp <- obsdiet_comp %>% filter(value != 0)
-nll_diet<-output$nll_dietprop
-
-hydraDataList$observedSurvDiet
-
-temporal1 = numeric()
-number = numeric(); number = sort(unique(obsdiet_comp$survey))
-for (n in 1:length(number)) {
-  pos0 = numeric(); pos0 = which(obsdiet_comp$survey == number[n])
   
-  species = numeric(); species = sort(unique(obsdiet_comp$species[pos0])) # especies
-  for(e in 1:length(species)){
-    pos1 = numeric(); pos1 = which(obsdiet_comp$species[pos0] == species[e])
+  obscatch_size$value = temporal1
+  hydraDataList$observedCatchSize<-obscatch_size
+  
+  hydraDataList$observedCatchSize["value"]<-hydraDataList$observedCatchSize["value"]/hydraDataList$observedCatchSize["inpN"]
+  
+  hydraDataList$observedCatchSize<-hydraDataList$observedCatchSize %>% pivot_wider(names_from = "lenbin") %>%
+    rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
+  
+  
+  #### SIMULATE SURVEY SIZE COMPOSITION DATA ####
+  
+  obssurv_size <- hydraDataList$observedSurvSize %>% tibble()
+  obssurv_size <- obssurv_size %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
     
-    year = numeric(); year = sort(unique(obsdiet_comp$year[pos0][pos1]))
-    for(y in 1:length(year)){
-      pos2 = numeric(); pos2 = which(obsdiet_comp$year[pos0][pos1]== year[y])
+    mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
+           label = rep("survey",nrow(.)))#,
+  #species = hydraDataList$speciesList[species])
+  #surv_size<- surv_size %>% filter(value != -999)
+  obssurv_size$value[which(obssurv_size$value == -999)] = 0.000001
+  obssurv_size <- select(obssurv_size, -label)
+  
+  pred_survsize<-output$pred_survey_size
+  nll_survey<-output$nll_survey_size
+  
+  #hydraDataList$observedSurvSize <- obssurv_size %>% 
+  #  mutate(value = (rmultinom(1, obssurv_size$inpN, pred_survsize)))
+  # store simulated object
+  #sim_data[[isim]] <- hydraDataList
+  
+  temporal1 = numeric()
+  number = numeric(); number = sort(unique(obssurv_size$survey))
+  for (n in 1:length(number)) {
+    pos0 = numeric(); pos0 = which(obssurv_size$survey == number[n])
+    
+    especie = numeric(); especie = sort(unique(obssurv_size$species[pos0])) # especies
+    for(e in 1:length(especie)){
+      pos1 = numeric(); pos1 = which(obssurv_size$species[pos0] == especie[e])
       
-      lenbin = numeric(); lenbin = sort(unique(obsdiet_comp$sizebin[pos0][pos1][pos2]))
-      for(l in 1:length(lenbin)){
-        pos3 = numeric(); pos3 = which(obsdiet_comp$sizebin[pos0][pos1][pos2] == lenbin[l])
+      year = numeric(); year = sort(unique(obssurv_size$year[pos0][pos1]))
+      for(y in 1:length(year)){
+        pos2 = numeric(); pos2 = which(obssurv_size$year[pos0][pos1]== year[y])
         
-        temp = numeric(); temp = rmultinom(1, unique(obsdiet_comp$inpN[pos0][pos1][pos2][pos3]), obsdiet_comp$value[pos0][pos1][pos2][pos3])
+        temp = numeric(); temp = rmultinom(1, unique(obssurv_size$inpN[pos0][pos1][pos2]), pred_survsize[pos0][pos1][pos2])
         temporal1 = c(temporal1, temp)
       }
     }
   }
-}
-
-# replace data with simulated data
-
-obsdiet_comp$value = temporal1
-hydraDataList$observedSurvDiet<-obsdiet_comp
-hydraDataList$observedSurvDiet["value"]<-hydraDataList$observedSurvDiet["value"]/hydraDataList$observedSurvDiet["inpN"]
-
-hydraDataList$observedSurvDiet<-hydraDataList$observedSurvDiet %>% pivot_wider(names_from = "prey")
-
-#to check if I am getting the correct values
-#write.csv(diet_comp, file = "diet_comp.csv", row.names = T)
-
-# use write_tsDatFile function to save the new ts file with simulated data 
-#n sim equal to scenario identifier from 1 to 30 simulations 
-
+  
+  obssurv_size$value = temporal1
+  hydraDataList$observedSurvSize<-obssurv_size
+  
+  hydraDataList$observedSurvSize["value"]<-hydraDataList$observedSurvSize["value"]/hydraDataList$observedSurvSize["inpN"]
+  
+  hydraDataList$observedSurvSize<-hydraDataList$observedSurvSize %>% pivot_wider(names_from = "lenbin") %>%
+    rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
+  
+  #to check if I am getting the correct values
+  #write.csv(surv_size, file = "surv_size.csv", row.names = T)
+  
+  
+  #### SIMULATE DIET COMPOSITION DATA ####
+  
+  obsdiet_comp <- hydraDataList$observedSurvDiet %>% tibble()
+  obsdiet_comp<-obsdiet_comp %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
+    mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
+      #species = hydraDataList$speciesList[species],
+      label = rep("diet",nrow(.)))
+  obsdiet_comp$value[which(obsdiet_comp$value == -999)] = 0.000001
+  obsdiet_comp <- select(obsdiet_comp, -label)
+  
+  pred_diet<-output$pred_dietprop
+  if (length(pred_diet)!=nrow(obsdiet_comp)) obsdiet_comp <- obsdiet_comp %>% filter(value != 0)
+  nll_diet<-output$nll_dietprop
+  
+  hydraDataList$observedSurvDiet
+  
+  temporal1 = numeric()
+  number = numeric(); number = sort(unique(obsdiet_comp$survey))
+  for (n in 1:length(number)) {
+    pos0 = numeric(); pos0 = which(obsdiet_comp$survey == number[n])
+    
+    species = numeric(); species = sort(unique(obsdiet_comp$species[pos0])) # especies
+    for(e in 1:length(species)){
+      pos1 = numeric(); pos1 = which(obsdiet_comp$species[pos0] == species[e])
+      
+      year = numeric(); year = sort(unique(obsdiet_comp$year[pos0][pos1]))
+      for(y in 1:length(year)){
+        pos2 = numeric(); pos2 = which(obsdiet_comp$year[pos0][pos1]== year[y])
+        
+        lenbin = numeric(); lenbin = sort(unique(obsdiet_comp$sizebin[pos0][pos1][pos2]))
+        for(l in 1:length(lenbin)){
+          pos3 = numeric(); pos3 = which(obsdiet_comp$sizebin[pos0][pos1][pos2] == lenbin[l])
+          
+          temp = numeric(); temp = rmultinom(1, unique(obsdiet_comp$inpN[pos0][pos1][pos2][pos3]), obsdiet_comp$value[pos0][pos1][pos2][pos3])
+          temporal1 = c(temporal1, temp)
+        }
+      }
+    }
+  }
+  
+  # replace data with simulated data
+  
+  obsdiet_comp$value = temporal1
+  hydraDataList$observedSurvDiet<-obsdiet_comp
+  hydraDataList$observedSurvDiet["value"]<-hydraDataList$observedSurvDiet["value"]/hydraDataList$observedSurvDiet["inpN"]
+  
+  hydraDataList$observedSurvDiet<-hydraDataList$observedSurvDiet %>% pivot_wider(names_from = "prey")
+  
+  #to check if I am getting the correct values
+  #write.csv(diet_comp, file = "diet_comp.csv", row.names = T)
+  
+  # use write_tsDatFile function to save the new ts file with simulated data 
+  #n sim equal to scenario identifier from 1 to 30 simulations 
+  
 }
 
 #### DIAGNOSTICS ####
@@ -210,6 +210,23 @@ library(tidyverse)
 
 hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 sim_data
+
+## OLD WAY TO READ MY SIM DATA
+repfiles <- c("simulated data/sim1/hydra_sim.rep","simulated data/sim2/hydra_sim.rep",
+              "simulated data/sim3/hydra_sim.rep","simulated data/sim4/hydra_sim.rep" ,"simulated data/sim5/hydra_sim.rep",
+              "simulated data/sim6/hydra_sim.rep", "simulated data/sim7/hydra_sim.rep" ,"simulated data/sim8/hydra_sim.rep",
+              "simulated data/sim9/hydra_sim.rep", "simulated data/sim10/hydra_sim.rep" ,"simulated data/sim11/hydra_sim.rep",
+              "simulated data/sim12/hydra_sim.rep", "simulated data/sim13/hydra_sim.rep" ,"simulated data/sim14/hydra_sim.rep",
+              "simulated data/sim15/hydra_sim.rep", "simulated data/sim16/hydra_sim.rep" ,"simulated data/sim17/hydra_sim.rep",
+              "simulated data/sim18/hydra_sim.rep", "simulated data/sim19/hydra_sim.rep" ,"simulated data/sim20/hydra_sim.rep",
+              "simulated data/sim21/hydra_sim.rep", "simulated data/sim22/hydra_sim.rep" ,"simulated data/sim23/hydra_sim.rep",
+              "simulated data/sim24/hydra_sim.rep", "simulated data/sim25/hydra_sim.rep" ,"simulated data/sim26/hydra_sim.rep",
+              "simulated data/sim27/hydra_sim.rep", "simulated data/sim28/hydra_sim.rep" ,"simulated data/sim29/hydra_sim.rep",
+              "simulated data/sim30/hydra_sim.rep")
+
+## I need to read the 100 sims in one line and then select one variable 
+## for the 100 sims, but I have a data list object with 1oo data sets and xxxx variables on each data set
+
 
 
 output_est<-purrr::map(repfiles, reptoRlist)
@@ -462,6 +479,12 @@ p4 <- catch_obspred %>%
   theme_bw() +
   guides(species = "None")
 print(p4)
+
+
+
+
+
+
 
 
 
