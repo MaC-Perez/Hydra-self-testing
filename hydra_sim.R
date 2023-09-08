@@ -209,7 +209,11 @@ library(ggforce)
 library(tidyverse)
 
 hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
-sim_data
+#sim_data
+
+saveRDS(sim_data, file="sim_data.RData")
+
+readRDS("sim_data.RData")
 
 ## OLD WAY TO READ MY SIM DATA
 repfiles <- c("simulated data/sim1/hydra_sim.rep","simulated data/sim2/hydra_sim.rep",
