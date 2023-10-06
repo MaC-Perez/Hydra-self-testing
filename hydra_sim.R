@@ -12,6 +12,8 @@ hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 repfile <- "inputs/initial_run/hydra_sim.rep"
 output<-reptoRlist(repfile)
 
+#repfile<-read.table("inputs/initial_run/pmse_predvals.out", header = FALSE, skip=2, nrow=336)
+#colnames(repfile)<-c("survey", "year", "spp", "area", "pred_survey")
 
 #### READ CATCH AND SURVEY OBSERVED BIOMASS ####
 obs_surveyB <- hydraDataList$observedBiomass
@@ -35,7 +37,7 @@ catch<-indexfits[[2]]%>%
 sim_data <- NULL
 isim <- 1
 
-for (isim in 1:100) { # 5 just to try 
+for (isim in 1:5) { # 5 just to try 
   
   # replace index with simulated data
   
@@ -201,6 +203,8 @@ for (isim in 1:100) { # 5 just to try
   
 }
 
+write_rds(sim_data, "sim_data.rds")
+
 #### DIAGNOSTICS ####
 
 source("R/read.report.R")
@@ -211,29 +215,97 @@ library(tidyverse)
 hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 #sim_data
 
-write_rds(sim_data, "sim_data.rds")
+
 hydraDataList2 <- readRDS("sim_data.rds")
 
-## OLD WAY TO READ MY SIM DATA
-repfiles <- c("simulated data/sim1/hydra_sim.rep","simulated data/sim2/hydra_sim.rep",
-              "simulated data/sim3/hydra_sim.rep","simulated data/sim4/hydra_sim.rep" ,"simulated data/sim5/hydra_sim.rep",
-              "simulated data/sim6/hydra_sim.rep", "simulated data/sim7/hydra_sim.rep" ,"simulated data/sim8/hydra_sim.rep",
-              "simulated data/sim9/hydra_sim.rep", "simulated data/sim10/hydra_sim.rep" ,"simulated data/sim11/hydra_sim.rep",
-              "simulated data/sim12/hydra_sim.rep", "simulated data/sim13/hydra_sim.rep" ,"simulated data/sim14/hydra_sim.rep",
-              "simulated data/sim15/hydra_sim.rep", "simulated data/sim16/hydra_sim.rep" ,"simulated data/sim17/hydra_sim.rep",
-              "simulated data/sim18/hydra_sim.rep", "simulated data/sim19/hydra_sim.rep" ,"simulated data/sim20/hydra_sim.rep",
-              "simulated data/sim21/hydra_sim.rep", "simulated data/sim22/hydra_sim.rep" ,"simulated data/sim23/hydra_sim.rep",
-              "simulated data/sim24/hydra_sim.rep", "simulated data/sim25/hydra_sim.rep" ,"simulated data/sim26/hydra_sim.rep",
-              "simulated data/sim27/hydra_sim.rep", "simulated data/sim28/hydra_sim.rep" ,"simulated data/sim29/hydra_sim.rep",
-              "simulated data/sim30/hydra_sim.rep")
+sim_obs_catch<-purrr::map_dfr(hydraDataList2,"observedCatch",.id = "isim")
+sim_obs_catch<- sim_obs_catch %>%
+    mutate(species = hydraDataList$speciesList[species])
 
-## I need to read the 100 sims in one line and then select one variable 
-## for the 100 sims, but I have a data list object with 1oo data sets and xxxx variables on each data set
+fleet1plot<-sim_obs_catch %>% filter(fishery==1)%>%
+  ggplot() +
+  aes(x = year, y = log(catch), col = isim) +
+  geom_line() +
+  facet_wrap(~species, scales = "free",dir="v") +
+  #geom_line() +
+ # geom_point(aes(x=year, y=log(obs_value)), col = "red")+
+#  geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Catch (t)",
+       title = "Time series of estimated LN(catch)")
+
+print(fleet1plot)
+
+fleet2plot<-sim_obs_catch %>% filter(fishery==2)%>%
+  ggplot() +
+  aes(x = year, y = (catch), col = isim) +
+  geom_line() +
+  facet_wrap(~species, scales = "free",dir="v") +
+ # geom_point(aes(x=year, y=log(obs_value)), col = "red")+
+#  geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Catch (t)",
+       title = "Time series of estimated LN(catch)")
+
+print(fleet2plot)
+
+
+sim_obs_bio<-purrr::map_dfr(hydraDataList2,"observedBiomass",.id = "isim")
+sim_obs_bio<- sim_obs_bio %>%
+  mutate(species = hydraDataList$speciesList[species])
+
+surv1plot<-sim_obs_bio %>% filter(survey==1)%>%
+  ggplot() +
+  aes(x = year, y = log(biomass), col = isim) +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  #geom_point(aes(x=year, y=log(obs_value)), col = "red")+
+  #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Biomass (t)",
+       title = "Time series of estimated LN(biomass)")
+
+print(surv1plot)
+
+
+surv2plot<-sim_obs_bio %>% filter(survey==2)%>%
+  ggplot() +
+  aes(x = year, y = log(biomass), col = isim) +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+ # geom_point(aes(x=year, y=log(obs_value)), col = "red")+
+  #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Biomass (t)",
+       title = "Time series of estimated LN(biomass)")
+
+print(surv2plot)
 
 
 
-output_est<-purrr::map(repfiles, reptoRlist)
-nmodel <- length(repfiles)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#output_est<-purrr::map(repfiles, reptoRlist)
+#nmodel <- length(repfiles)
 
 F_true<-output$EstFsize
 
