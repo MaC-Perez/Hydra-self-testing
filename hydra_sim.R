@@ -37,20 +37,20 @@ catch<-indexfits[[2]]%>%
 sim_data <- NULL
 isim <- 1
 
-for (isim in 1:5) { # 5 just to try 
+for (isim in 1:100) { # 5 just to try 
   
   # replace index with simulated data
   
   
   hydraDataList$observedCatch <- obs_catchB %>%
-    mutate(catch = rnorm(nrow(.), indexfits[[2]]$pred_catch,indexfits[[2]]$cv))
+    mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),indexfits[[2]]$cv))
   
   sim_data[[isim]] <- hydraDataList
   
   
   ##### SIMULATE SURVEY BIOMASS DATA ######
   hydraDataList$observedBiomass <- obs_surveyB %>%
-    mutate(biomass = (rnorm(nrow(.), indexfits[[1]]$pred_bio, indexfits[[1]]$cv)))
+    mutate(biomass = (rnorm(nrow(.), log(indexfits[[1]]$pred_bio), indexfits[[1]]$cv)))
   # store simulated object
   sim_data[[isim]] <- hydraDataList
   
@@ -218,6 +218,8 @@ hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 
 hydraDataList2 <- readRDS("sim_data.rds")
 
+#### PLOT SIM CATCH ####
+
 sim_obs_catch<-purrr::map_dfr(hydraDataList2,"observedCatch",.id = "isim")
 sim_obs_catch<- sim_obs_catch %>%
     mutate(species = hydraDataList$speciesList[species])
@@ -251,6 +253,7 @@ fleet2plot<-sim_obs_catch %>% filter(fishery==2)%>%
 
 print(fleet2plot)
 
+#### PLOT SIM SURVEY BIOM ####
 
 sim_obs_bio<-purrr::map_dfr(hydraDataList2,"observedBiomass",.id = "isim")
 sim_obs_bio<- sim_obs_bio %>%
@@ -285,285 +288,166 @@ surv2plot<-sim_obs_bio %>% filter(survey==2)%>%
 
 print(surv2plot)
 
+#### PLOT SIM LENGHT SURVEY ####
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#output_est<-purrr::map(repfiles, reptoRlist)
-#nmodel <- length(repfiles)
-
-F_true<-output$EstFsize
-
-F_true<- as.data.frame(F_true)  %>%
-  rename(sizebin1 = 'V1', sizebin2 = 'V2', sizebin3 = 'V3', sizebin4 = 'V4', sizebin5 = 'V5')
-
-F_true <- F_true %>%  #output$EstBsize %>%
-  # rowSums() %>%
-  tibble() %>%
-  mutate(Ftot = rowSums(across(where(is.numeric)))/5) %>%
-  mutate(species = (rep(hydraDataList$speciesList, each = hydraDataList$Nyrs)),
-         year  = (rep(1:(hydraDataList$Nyrs),4)),
-         #         #year = 0.8 + year / 5,  #5 time steps per year
-         log_F = ifelse(Ftot>0,log(Ftot),NA))
-
-FF<-rep(F_true$Ftot,times=30)
-
-
-est_survey <- map(output_est, "survey") %>%
-  #walk(as.data.frame) %>%
-  map_dfr(as.data.frame, .id = "model")
-
-write.csv(est_survey, file = "biomass.csv", row.names = T)
-
-
-est_survey<- est_survey %>%
-  rename(n_sim = 'model', survey = 'V1', year = 'V2', species = 'V3', obs_value = 'V4', cv = 'V5', pred_value = 'V6', res = 'V7', nll = 'V8') %>%
+sim_surv_lenght<-purrr::map_dfr(hydraDataList2,"observedSurvSize",.id = "isim")
+sim_surv_lenght<- sim_surv_lenght %>%
   mutate(species = hydraDataList$speciesList[species])
 
-surv1plot<-est_survey %>% filter(survey==1)%>%
-  ggplot() +
-  aes(x = year, y = (pred_value), col = n_sim) +
-  geom_line() +
-  facet_wrap(~species, scales = "free") +
-  #geom_point(aes(x=year, y=log(obs_value)), col = "red")+
-  #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  theme_minimal() +
-  labs(x = "Year",
-       y = "Biomass (t)",
-       title = "Time series of estimated LN(biomass)")
+sim_surv_lenght <- sim_surv_lenght %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
+ # filter(value != -999)%>%
+  mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")))
 
-print(surv1plot)
+sp<-1
+plot_surv <- list()
+especies<-unique(sim_surv_lenght$species)
+for (sp in especies) {
+  
+  temp_size<-sim_surv_lenght %>% filter(species == sp & survey==1) %>%
+    group_by(year) %>%
+    summarize(mu_ss=mean(inpN))
+  
+  plot_surv[[sp]] <- sim_surv_lenght %>% filter (species==sp & survey==1) %>%
+    ggplot() +
+    aes(x=lenbin, y = value) +
+    geom_line(aes(col = isim)) +
+    facet_wrap(~year, dir="v") +
+    geom_text(data=temp_size, aes(x = 4.5, y = 0.5, label = mu_ss), size=3) +
+    theme(legend.position = "bottom") +
+    labs(col="") +
+    guides(col = guide_legend(nrow = 1))
+}  
+ 
+plot_surv$Atlantic_cod
+plot_surv$Atlantic_herring
+plot_surv$Atlantic_mackerel
+plot_surv$Spiny_dogfish
 
+sp<-1
+plot_surv <- list()
+especies<-unique(sim_surv_lenght$species)
+for (sp in especies) {
+  
+  temp_size<-sim_surv_lenght %>% filter(species == sp & survey==2) %>%
+    group_by(year) %>%
+    summarize(mu_ss=mean(inpN))
+  
+  plot_surv[[sp]] <- sim_surv_lenght %>% filter (species==sp & survey==2) %>%
+    ggplot() +
+    aes(x=lenbin, y = value) +
+    geom_line(aes(col = isim)) +
+    facet_wrap(~year, dir="v") +
+    geom_text(data=temp_size, aes(x = 4.5, y = 0.5, label = mu_ss), size=3) +
+    theme(legend.position = "bottom") +
+    labs(col="") +
+    guides(col = guide_legend(nrow = 1))
+}  
 
-surv2plot<-est_survey %>% filter(survey==2)%>%
-  ggplot() +
-  aes(x = year, y = log(pred_value), col = n_sim) +
-  geom_line() +
-  facet_wrap(~species, scales = "free") +
-  geom_point(aes(x=year, y=log(obs_value)), col = "red")+
-  geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  theme_minimal() +
-  labs(x = "Year",
-       y = "Biomass (t)",
-       title = "Time series of estimated LN(biomass)")
+plot_surv$Atlantic_cod
+plot_surv$Atlantic_herring
+plot_surv$Atlantic_mackerel
+plot_surv$Spiny_dogfish
 
-print(surv2plot)
+#### PLOT SIM LENGHT CATCH ####
 
-
-est_catch <- map(output_est, "catch") %>%
-  #walk(as.data.frame) %>%
-  map_dfr(as.data.frame, .id = "model")
-
-est_catch<- est_catch %>%
-  rename(n_sim = 'model', fleet = 'V1', area = 'V2', year = 'V3', species = 'V4', obs_value = 'V5', cv = 'V6', pred_value = 'V7', res = 'V8', nll = 'V9') %>%
+sim_catch_lenght<-purrr::map_dfr(hydraDataList2,"observedCatchSize",.id = "isim")
+sim_catch_lenght<- sim_catch_lenght %>%
   mutate(species = hydraDataList$speciesList[species])
 
-fleet1plot<-est_catch %>% filter(fleet==1)%>%
-  ggplot() +
-  aes(x = year, y = log(pred_value), col = n_sim) +
-  geom_line() +
-  facet_wrap(~species, scales = "free",dir="v") +
-  #geom_line() +
-  geom_point(aes(x=year, y=log(obs_value)), col = "red")+
-  geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  theme_minimal() +
-  labs(x = "Year",
-       y = "Catch (t)",
-       title = "Time series of estimated LN(catch)")
+sim_catch_lenght <- sim_catch_lenght %>% pivot_longer(cols=8:ncol(.), names_to = "lenbin") %>%
+  # filter(value != -999)%>%
+  mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")))
 
-print(fleet1plot)
+sp<-1
+plot_catch <- list()
+especies<-unique(sim_catch_lenght$species)
+for (sp in especies) {
+  
+  temp_size<-sim_catch_lenght %>% filter(species == sp & fishery  ==1) %>%
+    group_by(year) %>%
+    summarize(mu_ss=mean(inpN))
+  
+  plot_catch[[sp]] <- sim_catch_lenght %>% filter (species==sp & fishery  ==1) %>%
+    ggplot() +
+    aes(x=lenbin, y = value) +
+    geom_line(aes(col = isim)) +
+    facet_wrap(~year, dir="v") +
+    geom_text(data=temp_size, aes(x = 4.5, y = 0.5, label = mu_ss), size=3) +
+    theme(legend.position = "bottom") +
+    labs(col="") +
+    guides(col = guide_legend(nrow = 1))
+}  
 
-fleet2plot<-est_catch %>% filter(fleet==2)%>%
-  ggplot() +
-  aes(x = year, y = log(pred_value), col = n_sim) +
-  geom_line() +
-  facet_wrap(~species, scales = "free",dir="v") +
-  geom_point(aes(x=year, y=log(obs_value)), col = "red")+
-  geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  theme_minimal() +
-  labs(x = "Year",
-       y = "Catch (t)",
-       title = "Time series of estimated LN(catch)")
+plot_catch$Atlantic_cod
+plot_catch$Atlantic_herring
+plot_catch$Atlantic_mackerel
+plot_catch$Spiny_dogfish
 
-print(fleet2plot)
+sp<-1
+plot_catch <- list()
+especies<-unique(sim_catch_lenght$species)
+for (sp in especies) {
+  
+  temp_size<-sim_catch_lenght %>% filter(species == sp & fishery  ==2) %>%
+    group_by(year) %>%
+    summarize(mu_ss=mean(inpN))
+  
+  plot_catch[[sp]] <- sim_catch_lenght %>% filter (species==sp & fishery  ==2) %>%
+    ggplot() +
+    aes(x=lenbin, y = value) +
+    geom_line(aes(col = isim)) +
+    facet_wrap(~year, dir="v") +
+    geom_text(data=temp_size, aes(x = 4.5, y = 0.5, label = mu_ss), size=3) +
+    theme(legend.position = "bottom") +
+    labs(col="") +
+    guides(col = guide_legend(nrow = 1))
+}  
 
-
-est_F <- map(output_est, "EstFsize") %>%
-  #walk(as.data.frame) %>%
-  map_dfr(as.data.frame, .id = "model")
-
-est_F<- est_F %>%
-  rename(model = 'model', sizebin1 = 'V1', sizebin2 = 'V2', sizebin3 = 'V3', sizebin4 = 'V4', sizebin5 = 'V5')
-
-est_F <- est_F %>%  #output$EstBsize %>%
-  # rowSums() %>%
-  tibble() %>%
-  mutate(Ftot = rowSums(across(where(is.numeric)))/5) %>%
-  mutate(species = rep(rep(hydraDataList$speciesList, each = hydraDataList$Nyrs),nmodel),
-         year  = rep(rep(1:(hydraDataList$Nyrs),4),nmodel),
-         #year = 0.8 + year / 5,  #5 time steps per year
-         log_F = ifelse(Ftot>0,log(Ftot),NA))
-#model = as.factor(model)) %>%
-
-
-ftot1plot<-est_F %>%
-  ggplot() +
-  aes(x = year, y = Ftot/mean(Ftot), col = model) +
-  geom_line() +
-  facet_wrap(~species, scales = "free") +
-  geom_line() +
-  geom_point(aes(x=year, y=FF/mean(FF)), col = "red")+
-  #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  theme_minimal() +
-  labs(x = "Year",
-       y = "Ftot (year-1)",
-       title = "Time series of estimated fishing mortality")
-
-print(ftot1plot)
+plot_catch$Atlantic_cod
+plot_catch$Atlantic_herring
+plot_catch$Atlantic_mackerel
+plot_catch$Spiny_dogfish
 
 
-est_M2 <- map(output_est, "EstM2size") %>%
-  #walk(as.data.frame) %>%
-  map_dfr(as.data.frame, .id = "model")
+#### PLOT SIM DIET COMP ####
 
-est_M2<- est_M2 %>%
-  rename(model = 'model', sizebin1 = 'V1', sizebin2 = 'V2', sizebin3 = 'V3', sizebin4 = 'V4', sizebin5 = 'V5')
+sim_diet<-purrr::map_dfr(hydraDataList2,"observedSurvDiet",.id = "isim")
+sim_diet <- sim_diet %>% pivot_longer(cols=7:ncol(.), names_to = "prey") %>%
+                    rename(prop = `value`)    
+sim_diet$type2<-"o" #rep(("o"),each=22810)#revisar esto
+sim_diet$sizefit<- paste0(observed$lenbin,".",observed$type2)# revisar esto
 
-est_M2 <- est_M2 %>%  #output$EstBsize %>%
-  # rowSums() %>%
-  tibble() %>%
-  mutate(M2 = rowSums(across(where(is.numeric)))) %>%
-  mutate(species = rep(rep(hydraDataList$speciesList, each = hydraDataList$Nyrs),nmodel),
-         year  = rep(rep(1:(hydraDataList$Nyrs),4),nmodel),
-         #year = 0.8 + year / 5,  #5 time steps per year
-         log_M2 = ifelse(M2>0,log(M2),NA))
-#model = as.factor(model)) %>%
-
-M2_true<-output$EstM2size
-
-M2_true<- as.data.frame(M2_true)  %>%
-  rename(sizebin1 = 'V1', sizebin2 = 'V2', sizebin3 = 'V3', sizebin4 = 'V4', sizebin5 = 'V5')
-
-M2_true <- M2_true %>%  #output$EstBsize %>%
-  # rowSums() %>%
-  tibble() %>%
-  mutate(M2 = rowSums(across(where(is.numeric)))) %>%
-  mutate(species = (rep(hydraDataList$speciesList, each = hydraDataList$Nyrs)),
-         year  = (rep(1:(hydraDataList$Nyrs),4)),
-         #         #year = 0.8 + year / 5,  #5 time steps per year
-         log_M2 = ifelse(M2>0,log(M2),NA))
-
-pred_mort<-rep(M2_true$M2,times=30)
-
-M2plot<-est_M2 %>% #select(year, species, model, sizebin5, M2) %>%
-  ggplot() +
-  aes(x = year, y = M2/mean(M2), col = model) +
-  geom_line() +
-  facet_wrap(~species, scales = "free") +
-  geom_line() +
-  geom_point(aes(x=year, y=pred_mort/mean(pred_mort)), col = "red")+
-  theme_minimal() +
-  labs(x = "Year",
-       y = "M2 (year-1)",
-       title = "Time series of estimated natural mortality")
-
-print(M2plot)
-
-
-survey_obspred<-indexfits[1][[1]]%>%
-  mutate(obs = biomass + 1e-07,
-         pred = pred_bio + 1e-07,
-         log_obs = log(obs),
-         log_pred = log(pred),
-         log_lo = log_obs - 1.96*cv,
-         log_hi = log_obs + 1.96*cv,
-         obs_lo = exp(log_lo),
-         obs_hi = exp(log_hi),
-         species = hydraDataList$speciesList[species])
-
-p1 <- survey_obspred %>%
-  filter(survey == 1) %>%
-  ggplot() +
-  aes(x= year, y = log_obs, group = species, col=factor(survey)) +
-  geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
-  #geom_point() +
-  geom_line(aes(x=year, y=log_pred), col = "blue") +
-  facet_wrap(~species, scales = "free_y") +
-  theme_bw() +
-  guides(species = "None")
-print(p1)
-
-p2 <- survey_obspred %>%
-  filter(survey == 2) %>%
-  ggplot() +
-  aes(x= year, y = log_obs, group = species, col=factor(survey)) +
-  geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
-  #geom_point() +
-  geom_line(aes(x=year, y=log_pred), col = "blue") +
-  facet_wrap(~species, scales = "free_y") +
-  theme_bw() +
-  guides(species = "None")
-print(p2)
-
-catch_obspred<-indexfits[2][[1]]%>%
-  mutate(obs = catch + 1e-07,
-         pred = pred_catch + 1e-07,
-         log_obs = log(obs),
-         log_pred = log(pred),
-         log_lo = log_obs - 1.96*cv,
-         log_hi = log_obs + 1.96*cv,
-         obs_lo = exp(log_lo),
-         obs_hi = exp(log_hi),
-         species = hydraDataList$speciesList[species])
-
-p3 <- catch_obspred %>%
-  filter(fishery == 1) %>%
-  ggplot() +
-  aes(x= year, y = log_obs, group = species, col=factor(fishery)) +
-  geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
-  geom_point() +
-  geom_line(aes(x=year, y=log_pred), col = "blue") +
-  facet_wrap(~species, scales = "free_y") +
-  theme_bw() +
-  guides(species = "None")
-print(p3)
-
-p4 <- catch_obspred %>%
-  filter(fishery == 2) %>%
-  ggplot() +
-  aes(x= year, y = log_obs, group = species, col=factor(fishery)) +
-  geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
-  geom_point() +
-  geom_line(aes(x=year, y=log_pred), col = "blue") +
-  facet_wrap(~species, scales = "free_y") +
-  theme_bw() +
-  guides(species = "None")
-print(p4)
-
-
-
-
-
-
-
-
-
-
-
-
+sp<-1
+nsize <- 5 #hydraDataList2$Nsizebins### problem for each sim
+stringbit <- paste0(rep(1:nsize, each=2),c(".o",".e"))
+limits_use <- rep("",3*nsize)
+breaks_use <- rep(NA,3*nsize)
+for (i in 1:nsize) {
+  lo <- i*3-2
+  hi <- i*3-1
+  limits_use[lo:hi] <- paste0(rep(i, 2),c(".o",".e"))
+  breaks_use[lo:hi] <- limits_use[lo:hi]
+}
+especies<-unique(sim_diet$species)
+plot_diet <- NULL
+for (sp in especies) {
+  
+  plot_diet[[sp]] <-  sim_diet %>%
+    tibble() %>% 
+    filter(species == sp & survey == 1) %>%
+    mutate(prop = as.numeric(prop)) %>% 
+    ggplot(aes(x = sizefit, y = prop, group = type2, fill = prey)) +
+    geom_col(position = "fill") +
+    scale_x_discrete(limits = limits_use,
+                       breaks = breaks_use,
+                       labels = limits_use) + 
+                       coord_flip() +
+                       facet_wrap(~as.numeric(year)) +
+                        theme_bw() +
+    labs(x = "size & source (o=observed, e=expected)",
+         fill = "prey",
+         y = "proportion in diet") +
+    scale_fill_brewer(type = "qual", palette = 3)
+  
+}
 
