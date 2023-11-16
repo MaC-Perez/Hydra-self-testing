@@ -373,9 +373,9 @@ for (sp in especies) {
     geom_line(aes(col = isim)) +
     facet_wrap(~year, dir="v") +
     geom_text(data=temp_size, aes(x = 4.5, y = 0.5, label = mu_ss), size=3) +
-    theme(legend.position = "bottom") +
-    labs(col="") +
-    guides(col = guide_legend(nrow = 1))
+    theme(legend.position = "none") + #bottom
+    labs(col="") #+
+    #guides(col = guide_legend(nrow = 1))
 }  
 
 plot_catch$Atlantic_cod
@@ -410,12 +410,12 @@ plot_catch$Spiny_dogfish
 
 
 #### PLOT SIM DIET COMP ####
-
+##### WE DONT NEED THIS #######
 sim_diet<-purrr::map_dfr(hydraDataList2,"observedSurvDiet",.id = "isim")
 sim_diet <- sim_diet %>% pivot_longer(cols=7:ncol(.), names_to = "prey") %>%
                     rename(prop = `value`)    
-sim_diet$type2<-"o" #rep(("o"),each=22810)#revisar esto
-sim_diet$sizefit<- paste0(observed$lenbin,".",observed$type2)# revisar esto
+sim_diet$type2<-"o" #rep(("o"),each=22810)
+sim_diet$sizefit<- paste0(sim_diet$sizebin,".",sim_diet$type2)
 
 sp<-1
 nsize <- 5 #hydraDataList2$Nsizebins### problem for each sim
@@ -428,6 +428,7 @@ for (i in 1:nsize) {
   limits_use[lo:hi] <- paste0(rep(i, 2),c(".o",".e"))
   breaks_use[lo:hi] <- limits_use[lo:hi]
 }
+
 especies<-unique(sim_diet$species)
 plot_diet <- NULL
 for (sp in especies) {
