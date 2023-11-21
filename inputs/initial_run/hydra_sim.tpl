@@ -64,6 +64,7 @@ GLOBALS_SECTION
   ofstream gavjunk("gav.junk");
   ofstream pmse_predvals("pmse_predvals.out");
 
+
 //=======================================================================================
 DATA_SECTION
 //=======================================================================================
@@ -281,6 +282,7 @@ DATA_SECTION
   init_int m1_phase            // M1 phase
   init_int oF1_phase           // amount of other food included in the M2 term for the base (predator 1) phase
   init_int oFdev_phase          //deviation from base other food for predators 2+ phase
+  init_int vuln_phase           // phase for vulnerability parameters
 
 //read in lists of species names, area names, fleet names, actual years from .dat file
 
@@ -514,7 +516,10 @@ DATA_SECTION
     
   init_3darray isprey(1,Nareas,1,Nspecies,1,Nspecies)    //preds in columns, prey in rows
   int Npred 
+  int Npreypar
+  !! Npreypar = 0;
   !! Npred = 0;
+  !! Npreypar = sum(isprey(1));
   !! for (spp=1;spp<=Nspecies;spp++) {
   !!  if(sum(extract_column(isprey(1),spp))>0) Npred += 1;
   !! }
@@ -549,19 +554,20 @@ DATA_SECTION
   !!		}
   !!	}
   !!  } //ok
-  4darray suitability(1,Nareas,1,Nspecies,1,Totsizebins,1,Nsizebins)
-  !!  //suitability = sizepref * isprey
-  !!  for (area=1; area<=Nareas; area++){
-  !!  	for (pred=1; pred<=Nspecies; pred++){
-  !!    	for(prey=1; prey<=Nspecies; prey++){
-  !!                    double sumOfSizePrefs = sum(sizepref(area,pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins));
-  !!			suitability(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins) =
-  !!						sizepref(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins)*
-  !!					//	(sizepref(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins)/sumOfSizePrefs)* // normalize rates
-  !!						isprey(area, prey, pred);
-  !!             }
-  !!	}
-  !!  }
+// GF - moved to procedure section
+//  4darray suitability(1,Nareas,1,Nspecies,1,Totsizebins,1,Nsizebins)
+//  !!  //suitability = sizepref * isprey
+//  !!  for (area=1; area<=Nareas; area++){
+//  !!  	for (pred=1; pred<=Nspecies; pred++){
+//  !!    	for(prey=1; prey<=Nspecies; prey++){
+//  !!                    double sumOfSizePrefs = sum(sizepref(area,pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins));
+//  !!			suitability(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins) =
+//  !!						sizepref(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins)*
+//  !!					//	(sizepref(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins)/sumOfSizePrefs)* // normalize rates
+//  !!						isprey(area, prey, pred);
+//  !!             }
+//  !!	}
+//  !!  }
 
 // GF - moved to parameter section
 //  //fishery selectivity pars from dat file, for now not area specific
@@ -619,10 +625,14 @@ DATA_SECTION
  //  !!  baseline_threshold = 0.2;
   // GF March 2022 - modifying fishing for estimation
   init_3darray indicator_fishery_q(1,Nareas,1,Nfleets,1,Nspecies) // used to determin which species used to calculate updated effort under assessment
+  //!! cout << indicator_fishery_q << endl;
   int Nqpars
   !! Nqpars = sum(indicator_fishery_q)-(Nfleets*Nareas);
   imatrix f_map(1,Nareas,1,Nfleets)  //primary species for each fleet (i.e. which species the F refers to)
-  imatrix q_map(1,Nqpars,1,3)  //object that maps the catchability parameters to area, species, and fleet
+  int dim2
+  !! dim2 = Nqpars;
+  !! if (dim2 == 0) dim2 = 1;
+  imatrix q_map(1,dim2,1,3)  //object that maps the catchability parameters to area, species, and fleet
   int dum
   !! f_map = 0;
   !! q_map = 0;
@@ -630,11 +640,13 @@ DATA_SECTION
   !! for(int area=1;area<=Nareas;area++) {
   !!   for (int ifleet=1;ifleet<=Nfleets;ifleet++) {
   !!     for (int species=1;species<=Nspecies;species++) {
+  !!       if (Nqpars >0) {
   !!       if (f_map(area,ifleet)!=0 && indicator_fishery_q(area,ifleet,species) == 1) {
   !!        dum += 1;
   !!        q_map(dum,1) = area;
   !!        q_map(dum,2) = species;
   !!        q_map(dum,3) = ifleet;
+  !!       }
   !!       }
   !!       if (f_map(area,ifleet)==0 && indicator_fishery_q(area,ifleet,species) == 1) f_map(area,ifleet) = species;
   !!     }
@@ -778,7 +790,7 @@ DATA_SECTION
     cout<<"sd_sizepref\n"<<sd_sizepref<<endl;
     cout<<"wtratio\n"<<wtratio<<endl;
     cout<<"sizepref\n"<<sizepref<<endl;
-    cout<<"suitability\n"<<suitability<<endl;
+    //cout<<"suitability\n"<<suitability<<endl;
     cout<<"B0\n"<<B0<<endl;
     cout<<"Nguilds\n"<<Nguilds<<endl;
     cout<<"guildMembers\n"<<guildMembers<<endl;
@@ -854,6 +866,11 @@ PARAMETER_SECTION
 
   4darray suitpreybio(1,Nareas,1,Nspecies,1,Tottimesteps,1,Nsizebins);  //suitable prey for each predator size and year, see weight unit above for units
   
+  !!cout << "Nprey " << Nprey << endl;
+  init_vector logit_vuln(1,Npreypar,vuln_phase);
+  3darray vulnerability(1,Nareas,1,Nspecies,1,Nspecies);
+  4darray suitability(1,Nareas,1,Nspecies,1,Totsizebins,1,Nsizebins); //GF moved here 01/09/2023 because vulnerabilities shifted
+
   5darray biomass_prey_avail_no_size(1,Nareas,1,Nspecies,1,Nyrs,1,Nsizebins,1,Nprey);
 
   //N, B, F, Z, M2, C, need total prey consumed per pred, suitability, available prey, food habits?
@@ -1133,7 +1150,6 @@ PROCEDURE_SECTION
 
   transform_parameters(); if (debug == 4) {cout<<"completed parameter transform"<<endl;}
 
-  
   for (area=1; area<=Nareas; area++){
    for(spp=1; spp<=Nspecies; spp++){
 //    //      M1(area, spp)  = 1.0 - pow((1.0 - M1ann(area, spp)), (1.0 / Nstepsyr)) ; //scale for steps per year to equal annual input from dat  
@@ -1141,7 +1157,6 @@ PROCEDURE_SECTION
 //    //        M1(area, spp) = mfexp(ln_M1ann(area, spp))/Nstepsyr;
     }
    }
-
 
   // Other Food - fill in the other food vector
    otherFood = 0.;
@@ -1158,11 +1173,27 @@ PROCEDURE_SECTION
   //cout << "other food" << endl;
   //cout << otherFood << endl;
 
+
+  //suitability calcs - previously in data section
+    //suitability = sizepref * vulnerability
+    for (area=1; area<=Nareas; area++){
+      for (pred=1; pred<=Nspecies; pred++){
+        for(prey=1; prey<=Nspecies; prey++){
+                      double sumOfSizePrefs = sum(sizepref(area,pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins));
+        suitability(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins) =
+              sizepref(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins)*
+            //  (sizepref(area, pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins)/sumOfSizePrefs)* // normalize rates
+              vulnerability(area, prey, pred);
+               }
+    }
+    }
+
+
   //ofstream popout("popstructure.out");
   //ofstream recout("recstructure.out");
 
 //  calc_fishery_qs(); if (debug == 4) {cout<<"completed fishery qs"<<endl;}  //gavinfay March 2022 - moved from PARAMETER_SECTION 
-
+  
   calc_initial_states();  if (debug == 4) {cout<<"completed Initial States"<<endl;}
 
   yrct=1;
@@ -1313,8 +1344,10 @@ FUNCTION transform_parameters
       fishery_q(area,f_map(area,ifleet),ifleet) = 1.;
     }
    }
+  if (Nqpars > 0) {
   for (int ipar=1;ipar<=Nqpars;ipar++) {
     fishery_q(q_map(ipar,1),q_map(ipar,2),q_map(ipar,3)) = mfexp(ln_fishery_q(ipar));
+  }
   }
   //cout << "fishery q" << endl;
   //cout << fishery_q << endl;
@@ -1346,6 +1379,26 @@ FUNCTION transform_parameters
    survey_q = mfexp(ln_survey_q);
   // surv_sigma = mfexp(ln_surv_sigma);
   // catch_sigma = mfexp(ln_catch_sigma);
+
+  //vulnerabilities
+  int iprey = 0;
+  vulnerability.initialize();
+  for (area=1; area<=Nareas; area++){
+    for (pred=1; pred<=Nspecies; pred++){
+      for(prey=1; prey<=Nspecies; prey++){
+        if (isprey(area,prey,pred)==1) {
+         iprey+=1;
+         vulnerability(area,prey,pred) = mfexp(logit_vuln(iprey))/(1.+mfexp(logit_vuln(iprey)));
+        }
+      }
+    }
+  }
+  //cout << "vulnerability" << endl;
+  //cout << logit_vuln << endl;
+  //cout << vulnerability << endl;
+  //exit(-1);
+
+
 
 //----------------------------------------------------------------------------------------
 FUNCTION calc_initial_states
@@ -1467,6 +1520,7 @@ FUNCTION calc_initial_states
 //            Fyr(area,spp,fleet) = fishery_q(area,spp,fleet)*obs_effort(area,fleet)*effortScaled(area,spp); //Andy Beet
 //                  Fyr(area,spp,fleet) = fishery_q(area,spp,fleet)*obs_effort(area,fleet); //Andy Beet
             Fyr(area,spp,fleet,iyr) = fishery_q(area,spp,fleet)*mfexp(avg_F(area,fleet)+F_devs(area,fleet,iyr));  //gavinfay March 2022 - modding for F
+            //Fyr(area,spp,fleet,iyr) = fishery_q(area,spp,fleet)*mfexp(F_devs(area,fleet,iyr));  //gavinfay March 2022 - modding for F
             //cout << iyr << " " << area << " " << spp << " " << fleet << " " << Fyr(area,spp,fleet,iyr) << endl;
       }
     }
@@ -1784,7 +1838,7 @@ FUNCTION calc_pred_mortality
 	    for(prey=1; prey<=Nspecies; prey++){
                // select the rows of suitability given predator (in blocks of Nsizebins )
                // suittemp is a Nsizebins x Nsizebins matrix.each value is suitability of pred size (col) on prey size(row)
-		  dmatrix suittemp = suitability(area,pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins);
+		  dvar_matrix suittemp = suitability(area,pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins);
                // when using .sub on a higher order array, even if a matrix is the result the .rowmin() value is not set to 1
                // it uses the value of the row it occupied in the large array. This .rowmin() value determins if matrices can be multiplied
                // so we need to use .rowshif to designate the matrix to have rows starting from .rowmin()=1
@@ -1818,7 +1872,7 @@ FUNCTION calc_pred_mortality
    for (area=1; area<=Nareas; area++){
   	for(prey=1; prey<=Nspecies; prey++){
                for(pred=1; pred<=Nspecies; pred++){
-		  dmatrix suittemp2 = suitability(area,pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins);
+		  dvar_matrix suittemp2 = suitability(area,pred).sub(prey*Nsizebins-(Nsizebins-1), prey*Nsizebins);
                   // see above description of why row shif is needed
 		  suittemp2.rowshift(1); //needed to match up array bounds
                   for (int ipreysize =1; ipreysize<=Nsizebins; ipreysize++) {
@@ -3192,16 +3246,16 @@ FUNCTION evaluate_the_objective_function
       nll_survey(i) = dlnorm(value, log(pred_survey_index(i)+eps), cv);
     }
    
-  //cout << "done survey abundance nll" << endl;
-  //if(isinf(value(sum(nll_survey)))) {
-  //  cout << " INFINITE OBJ FUN" << endl;
-   // gavjunk << survey_q << endl;
-    //gavjunk << ln_survey_q << endl;
-    //gavjunk << "survey biomass data, predicted, residual, nll" << endl;
-  //for (int i=1;i<=Nsurvey_obs;i++)
-   // gavjunk << obs_survey_biomass(i) << " " << pred_survey_index(i) << " " << resid_survey(i) << " " << nll_survey(i) << endl;
-  //exit(-1);
-  //}
+  cout << "done survey abundance nll" << endl;
+//  if(isinf(value(sum(nll_survey)))) {
+//    cout << " INFINITE OBJ FUN" << endl;
+//    gavjunk << survey_q << endl;
+//    gavjunk << ln_survey_q << endl;
+//    gavjunk << "survey biomass data, predicted, residual, nll" << endl;
+//  for (int i=1;i<=Nsurvey_obs;i++)
+//    gavjunk << obs_survey_biomass(i) << " " << pred_survey_index(i) << " " << resid_survey(i) << " " << nll_survey(i) << endl;
+//  exit(-1);
+//  }
   //
 
  //Survey Catch-at-length
@@ -3431,6 +3485,7 @@ REPORT_SECTION
    for (int j=1;j<=Nfleets;j++) {
      report << i << " " << j << " " << Fyr(1,i,j) << endl;
   }}
+
 
 //// write full time series of predicted data streams to pmse_prevals.out
 
