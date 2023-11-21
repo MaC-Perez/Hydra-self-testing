@@ -26,8 +26,8 @@ library(compResidual)
 hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 
 #READ FITS FROM SARAHS DATA SETS
-#repfile <- "inputs/initial_run/test/hydra_sim.rep"
-repfile <- "inputs/initial_run/hydra_sim.rep"
+repfile <- "inputs/initial_run/test_2/hydra_sim.rep"
+#repfile <- "inputs/initial_run/hydra_sim.rep"
 
 output<-reptoRlist(repfile)
 

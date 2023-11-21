@@ -64,6 +64,7 @@ GLOBALS_SECTION
   ofstream gavjunk("gav.junk");
 
 
+
 //=======================================================================================
 DATA_SECTION
 //=======================================================================================
@@ -283,6 +284,7 @@ DATA_SECTION
   init_int oFdev_phase          //deviation from base other food for predators 2+ phase
 
 //read in lists of species names, area names, fleet names, actual years from .dat file
+
 
 //the following are parameters that will be fixed in initial runs, so read in as "data" from .dat
 //to estimate any of them within the model, place in parameter section, initialize from .pin file
