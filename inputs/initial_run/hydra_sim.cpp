@@ -1991,7 +1991,7 @@ void model_parameters::report(const dvector& gradients)
   report << F << endl;
   report << "EstM2size Estimated predation mortality " << endl;
   report << M2 << endl;
-  report << "table of fits to survey" << endl;
+  //report << "table of fits to survey" << endl;
   report << "survey biomass data, predicted, residual, nll" << endl;
   for (int i=1;i<=Nsurvey_obs;i++)
     report << obs_survey_biomass(i) << " " << pred_survey_index(i) << " " << resid_survey(i) << " " << nll_survey(i) << endl;
@@ -1999,7 +1999,7 @@ void model_parameters::report(const dvector& gradients)
   // report << est_survey_biomass << endl;
   // report << "ObsSurvB Observed survey biomass of fish " << endl;
   // report << obs_survey_biomass << endl;
-  report << "table of fits to catch" << endl;
+  //report << "table of fits to catch" << endl;
   report << "catch data, predicted, residual, nll" << endl;
   for (int i=1;i<=Ncatch_obs;i++)
     report << obs_catch_biomass(i) << " " << pred_catch_biomass(i) << " " << resid_catch(i) << " " << nll_catch(i) << endl;
