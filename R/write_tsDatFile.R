@@ -3,9 +3,8 @@ write_tsDatFile <- function(dataList,listOfParameters) {
   outPath <- paste0(listOfParameters$outDir,"/",listOfParameters$outputFilename)
   outputFileName <-  paste0(outPath,sim,"-ts.dat")
   # write explanation of how this file was formed
-  cat("# This file was created using create_datpin_files.R function write_tsDatFile
-      #and used all inputs from csv files found in folder:
-      #hydradata/data-raw",file=outputFileName,fill=listOfParameters$fillLength)
+  cat("# This file was created using the write_tsDatFile function and used all the simulated data from sim_dta.rds found in repo:Hydra-self-testing",
+      file=outputFileName,fill=listOfParameters$fillLength)
 
   # observed (survey) biomass
   cat("# Survey index data ",file=outputFileName,fill=listOfParameters$fillLength,append=TRUE)
