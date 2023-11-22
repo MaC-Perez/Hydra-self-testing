@@ -9,7 +9,7 @@ library(hydradata)
 ### Read observed and estimated values, Hydra data list from Sarahs 4 species scenario
 hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 #rep file model (check latest version) 
-repfile <- "inputs/initial_run/test_2/hydra_sim.rep"
+repfile <- "inputs/hydra_sim.rep"
 output<-reptoRlist(repfile)
 
 #repfile<-read.table("inputs/initial_run/pmse_predvals.out", header = FALSE, skip=2, nrow=336)
@@ -205,21 +205,32 @@ for (isim in 1:100) { # 5 just to try
 
 write_rds(sim_data, "sim_data.rds")
 
+#### WRITE tsDat FUNCTION ####
+source("R/write_tsDatFile.R")
+
+hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
+hydraDataList2 <- readRDS("sim_data.rds")
+
+
+listOfParameters<-list()
+listOfParameters$outDir<-paste0(getwd(),"/","sims")
+listOfParameters$outputFilename<-"hydra_sim"
+listOfParameters$fillLength <- 2000
+
+nsim<-100
+for (nsim in 1:100){ 
+write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
+}
+
 #### DIAGNOSTICS ####
 browseVignettes("hydradata")
 
 source("R/read.report.R")
 source("R/gettables.R")
-source("R/write_tsDatFile.R")
+
 library(ggforce)
 library(tidyverse)
 
-hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
-
-write_tsDatFile(sim_data)
-
-
-hydraDataList2 <- readRDS("sim_data.rds")
 
 #### PLOT SIM CATCH ####
 
