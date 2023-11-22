@@ -230,7 +230,7 @@
 #  Either observed temperature  or manufactured temperature for simulation runs
 #1977 to 1997 Georges Bank bottom temp from 2011 ESR (1964-1976 set to 8.0) and 1998 to 2010 Georges Bank bottom temp from 2011 ESR
   8.69398 9.08885 8.74414285714286 8.868 8.55206666666667 9.43436666666667 9.26516666666667 9.69548 9.1646 8.274075 8.52445 8.32313333333333 8.99702857142857 8.79641428571429 8.26319 8.48561666666667 9.46302222222222 9.72635333333333 8.42418666666667 8.99431 9.18441538461539 9.96980714285714 9.25267142857143 9.30151111111111 9.9935875 8.71782222222222 7.99782857142857 8.4206 9.3799 8.41815 8.95543333333333 9.0541625 9.2831125 9.8491375 10.4877555555556 9.95232857142857 9.671 9.63732 10.31192 9.5166 9.99688 9.77481666666667
-##  init_int yr1Nphase            //year 1 N at size estimation phase
+#  init_int yr1Nphase            //year 1 N at size estimation phase
   1
 #  init_int recphase        //recruitment parameter estimation phas
   -1
@@ -260,7 +260,7 @@
   -1
 #  init_int oF1_phase           // amount of other food included in the M2 term for the base (predator 1) phase
   -1
-#   init_int oFdev_phase          //deviation from base other food for predators 2+ phase
+#  init_int oFdev_phase          //deviation from base other food for predators 2+ phase
   -1
 #  init_int vuln_phase      // phase for vulnerability parameters
   -1
