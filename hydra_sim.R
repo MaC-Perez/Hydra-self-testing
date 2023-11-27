@@ -217,10 +217,24 @@ listOfParameters$outDir<-paste0(getwd(),"/","sims")
 listOfParameters$outputFilename<-"hydra_sim"
 listOfParameters$fillLength <- 2000
 
-nsim<-100
 for (nsim in 1:100){ 
 write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
 }
+
+
+#### RUN THE MODEL WITH 100 SIMS ####
+library("R2admb")
+
+Dir_results<-paste0(getwd(),"/","sims","/","outputs")
+fn<-"inputs/hydra_sim.tpl"
+data<-"sims/hydra_sim1-ts"
+
+for (nsim in 1:100){ 
+do_admb(fn, data[[nsim]], workdir=Dir_results)
+}
+
+
+
 
 #### DIAGNOSTICS ####
 browseVignettes("hydradata")
