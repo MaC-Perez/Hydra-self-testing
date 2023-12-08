@@ -67,6 +67,7 @@ class model_data : public ad_comm{
   data_int m1_phase;
   data_int oF1_phase;
   data_int oFdev_phase;
+  data_int vuln_phase;
   data_matrix recGamma_alpha;
   data_matrix recGamma_shape;
   data_matrix recGamma_beta;
@@ -122,11 +123,11 @@ class model_data : public ad_comm{
   d4_array intake;
   data_3array isprey;
   int Npred;
+  int Npreypar;
   data_matrix preferred_wtratio;
   data_vector sd_sizepref;
   d4_array wtratio;
   d4_array sizepref;
-  d4_array suitability;
   data_matrix B0;
   data_int Nguilds;
   imatrix catchToDiscardsGuild;
@@ -159,6 +160,7 @@ class model_data : public ad_comm{
   data_3array indicator_fishery_q;
   int Nqpars;
   imatrix f_map;
+  int dim2;
   imatrix q_map;
   int dum;
   data_vector AR_parameters;
@@ -172,6 +174,12 @@ class model_data : public ad_comm{
   data_int flagMSE;
   data_matrix residentTime;
   data_matrix areaMortality;
+  data_int m1_change_yr;
+  data_number m1_multiplier;
+  data_int of_change_yr;
+  data_number of_multiplier;
+  data_int flag_tvar_q;
+  int Nqpar_vec;
   data_int eof;
   data_int Nsurvey_obs;
   data_matrix obs_survey_biomass;
@@ -244,6 +252,9 @@ private:
   param_init_d3array F_devs;
   param_4array Fyr;
   param_4array suitpreybio;
+  param_init_vector logit_vuln;
+  param_3array vulnerability;
+  param_4array suitability;
   param_5array biomass_prey_avail_no_size;
   param_4array N;
   param_4array Narea;
@@ -264,8 +275,8 @@ private:
   param_5array Ffl;
   param_5array Dfl;
   param_5array Cfl;
-  param_init_vector ln_fishery_q;
-  param_3array fishery_q;
+  param_init_matrix ln_fishery_q;
+  param_4array fishery_q;
   param_3array mean_guild_fishery_q;
   param_init_bounded_matrix ln_survey_q;
   param_matrix survey_q;
@@ -345,16 +356,17 @@ private:
   param_number likelihood_function_value;
   objective_function_value objfun;
   param_init_matrix ln_M1ann;
-  param_3array M1;
+  param_4array M1;
   param_init_number ln_otherFood_base;
   param_init_vector otherFood_dev;
-  param_vector otherFood;
+  param_matrix otherFood;
 public:
   virtual void userfunction(void);
   virtual void report(const dvector& gradients);
   virtual void final_calcs(void);
   model_parameters(int sz,int argc, char * argv[]);
   virtual void initializationfunction(void);
+  void calc_tv_m1(void);
   void transform_parameters(void);
   void calc_initial_states(void);
   void calc_update_N(void);
