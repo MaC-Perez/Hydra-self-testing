@@ -9,7 +9,7 @@ library(hydradata)
 ### Read observed and estimated values, Hydra data list from Sarahs 4 species scenario
 hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 #rep file model (check latest version) 
-repfile <- "inputs/hydra_sim.rep"
+repfile <- "inputs/initial_run/hydra_sim.rep"
 output<-reptoRlist(repfile)
 
 #repfile<-read.table("inputs/initial_run/pmse_predvals.out", header = FALSE, skip=2, nrow=336)
@@ -32,30 +32,30 @@ catch<-indexfits[[2]]%>%
   mutate(species = hydraDataList$speciesList[species])
 
 
-##### SIMULATE CATCH DATA ######
+
 # create simulation object
 sim_data <- NULL
 isim <- 1
 
-for (isim in 1:100) { # 5 just to try 
+for (isim in 1:100) {  
   
   # replace index with simulated data
   
-  
+##### SIMULATE CATCH DATA ######
   hydraDataList$observedCatch <- obs_catchB %>%
     mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),indexfits[[2]]$cv))
   
   sim_data[[isim]] <- hydraDataList
   
   
-  ##### SIMULATE SURVEY BIOMASS DATA ######
+##### SIMULATE SURVEY BIOMASS DATA ######
   hydraDataList$observedBiomass <- obs_surveyB %>%
-    mutate(biomass = (rnorm(nrow(.), log(indexfits[[1]]$pred_bio), indexfits[[1]]$cv)))
+    mutate(biomass = (rnorm(nrow(.), log(indexfits[[1]]$pred_bio),indexfits[[1]]$cv)))
   # store simulated object
   sim_data[[isim]] <- hydraDataList
   
   
-  #### SIMULATE CATCH SIZE COMPOSITION DATA ####
+#### SIMULATE CATCH SIZE COMPOSITION DATA ####
   
   obscatch_size <- hydraDataList$observedCatchSize %>% tibble()
   obscatch_size<-obscatch_size %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
@@ -96,7 +96,7 @@ for (isim in 1:100) { # 5 just to try
     rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
   
   
-  #### SIMULATE SURVEY SIZE COMPOSITION DATA ####
+#### SIMULATE SURVEY SIZE COMPOSITION DATA ####
   
   obssurv_size <- hydraDataList$observedSurvSize %>% tibble()
   obssurv_size <- obssurv_size %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
@@ -147,7 +147,7 @@ for (isim in 1:100) { # 5 just to try
   #write.csv(surv_size, file = "surv_size.csv", row.names = T)
   
   
-  #### SIMULATE DIET COMPOSITION DATA ####
+#### SIMULATE DIET COMPOSITION DATA ####
   
   obsdiet_comp <- hydraDataList$observedSurvDiet %>% tibble()
   obsdiet_comp<-obsdiet_comp %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
@@ -205,39 +205,8 @@ for (isim in 1:100) { # 5 just to try
 
 write_rds(sim_data, "sim_data.rds")
 
-#### WRITE tsDat FUNCTION ####
-source("R/write_tsDatFile.R")
-
-hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
-hydraDataList2 <- readRDS("sim_data.rds")
-
-
-listOfParameters<-list()
-listOfParameters$outDir<-paste0(getwd(),"/","sims")
-listOfParameters$outputFilename<-"hydra_sim"
-listOfParameters$fillLength <- 2000
-
-for (nsim in 1:100){ 
-write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
-}
-
-
-#### RUN THE MODEL WITH 100 SIMS ####
-library("R2admb")
-
-Dir_results<-paste0(getwd(),"/","sims","/","outputs")
-fn<-"inputs/hydra_sim.tpl"
-data<-"sims/hydra_sim1-ts"
-
-for (nsim in 1:100){ 
-do_admb(fn, data[[nsim]], workdir=Dir_results)
-}
-
-
-
-
 #### DIAGNOSTICS ####
-browseVignettes("hydradata")
+#browseVignettes("hydradata")
 
 source("R/read.report.R")
 source("R/gettables.R")
@@ -257,7 +226,8 @@ fleet1plot<-sim_obs_catch %>% filter(fishery==1)%>%
   aes(x = year, y = log(catch), col = isim) +
   geom_line() +
   facet_wrap(~species, scales = "free",dir="v") +
-  theme_minimal() +
+  #theme_minimal() +
+  theme(legend.position = "none") +
   labs(x = "Year",
        y = "Catch (t)",
        title = "Time series of estimated LN(catch)")
@@ -271,7 +241,8 @@ fleet2plot<-sim_obs_catch %>% filter(fishery==2)%>%
   facet_wrap(~species, scales = "free",dir="v") +
  # geom_point(aes(x=year, y=log(obs_value)), col = "red")+
 #  geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  theme_minimal() +
+ # theme_minimal() +
+  theme(legend.position = "none") +
   labs(x = "Year",
        y = "Catch (t)",
        title = "Time series of estimated LN(catch)")
@@ -291,7 +262,8 @@ surv1plot<-sim_obs_bio %>% filter(survey==1)%>%
   facet_wrap(~species, scales = "free") +
   #geom_point(aes(x=year, y=log(obs_value)), col = "red")+
   #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  theme_minimal() +
+  #theme_minimal() +
+  theme(legend.position = "none") +
   labs(x = "Year",
        y = "Biomass (t)",
        title = "Time series of estimated LN(biomass)")
@@ -306,7 +278,8 @@ surv2plot<-sim_obs_bio %>% filter(survey==2)%>%
   facet_wrap(~species, scales = "free") +
  # geom_point(aes(x=year, y=log(obs_value)), col = "red")+
   #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  theme_minimal() +
+  #theme_minimal() +
+  theme(legend.position = "none") +
   labs(x = "Year",
        y = "Biomass (t)",
        title = "Time series of estimated LN(biomass)")
@@ -476,4 +449,394 @@ for (sp in especies) {
     scale_fill_brewer(type = "qual", palette = 3)
   
 }
+
+
+
+#### WRITE tsDat FUNCTION ####
+source("R/write_tsDatFile.R")
+
+hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
+hydraDataList2 <- readRDS("sim_data.rds")
+
+
+listOfParameters<-list()
+listOfParameters$outDir<-paste0(getwd(),"/","sims")
+listOfParameters$outputFilename<-"hydra_sim"
+listOfParameters$fillLength <- 2000
+
+for (nsim in 1:100){ 
+  write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
+}
+
+
+#### RUN THE MODEL WITH 100 SIMS ####
+
+#multiple calls to 'system()' given different folders/filenames.
+isim<-1
+
+system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
+#file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
+
+for (isim in 1:1)
+{
+  system("cp hydra_sim1-ts.dat hydra_sim_GBself_5bin-ts.dat")
+  #file.copy(from="sims/hydra_sim",isim,"-ts", to= "sims/hydra_sim_GBself_5bin-ts", overwrite = recursive, recursive = TRUE,
+         #   copy.mode = TRUE, copy.date = FALSE)
+              system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
+              #system("mkdir 001")
+              file.rename(from = "hydra_sim.rep", to = paste0("hydra_sim", isim,".rep"))
+              
+}
+
+
+for (i in 1:3)
+{
+  system(paste0('./hydra_sim -ind ', 'simple',i, ".dat -nox")) ## 
+  file.rename(from = "hydra_sim.rep", to = paste0("rata", i,".txt"))
+}
+
+
+
+library("R2admb")
+
+Dir_results<-paste0(getwd(),"/","sims","/","outputs")
+fn<-"inputs/hydra_sim.tpl"
+data<-"sims/hydra_sim1-ts"
+
+for (nsim in 1:100){ 
+  do_admb(fn, data[[nsim]], workdir=Dir_results)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+temporal2 = numeric()
+especie = numeric(); especie = sort(unique(temp.catch$species)) # especies
+for(e in 1:length(especie)){
+  pos1 = numeric(); pos1 = which(temp.catch$species == especie[e])
+  
+  temporal1 = numeric()
+  year = numeric(); year = sort(unique(temp.catch$year[pos1])) # ano
+  for(y in 1:length(year)){
+    pos2 = numeric(); pos2 = which(temp.catch$year[pos1] == year[y])
+    
+    N = numeric(); N = unique(temp.catch$InpN[pos1][pos2]) # sample size para el estrato especie ano
+    n_ejemplares_obs = numeric(); n_ejemplares_obs = round(N * temp.catch$obs_value[pos1][pos2] , 0) # crea vector de proporcion por el sample size
+    n_ejemplares_est = numeric(); n_ejemplares_est = round(N * temp.catch$pred_value[pos1][pos2], 0)
+    
+    tt1 = numeric()
+    tt1 = data.frame(YEAR = year[y], BIN = temp.catch$lenbin[pos1][pos2], N = N, N_EJEM_OBS = n_ejemplares_obs, N_EJEM_EST = n_ejemplares_est)
+    
+    temporal1 = rbind(temporal1, tt1) # guarda la proporcion * sample size para la especie seleccionada y ano
+  }
+  
+  bin1_obs = numeric(); bin1_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 1)])
+  bin2_obs = numeric(); bin2_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 2)])
+  bin3_obs = numeric(); bin3_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 3)])
+  bin4_obs = numeric(); bin4_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 4)])
+  bin5_obs = numeric(); bin5_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 5)])
+  
+  total_obs = sum(bin1_obs, bin2_obs, bin3_obs, bin4_obs, bin5_obs)
+  prop_new_obs = numeric(); prop_new_obs = c(bin1_obs, bin2_obs, bin3_obs, bin4_obs, bin5_obs) / total_obs
+  
+  bin1_pred = numeric(); bin1_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 1)])
+  bin2_pred = numeric(); bin2_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 2)])
+  bin3_pred = numeric(); bin3_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 3)])
+  bin4_pred = numeric(); bin4_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 4)])
+  bin5_pred = numeric(); bin5_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 5)])
+  
+  total_pred = sum(bin1_pred, bin2_pred, bin3_pred, bin4_pred, bin5_pred)
+  prop_new_est = numeric(); prop_new_est = c(bin1_pred, bin2_pred, bin3_pred, bin4_pred, bin5_pred) / total_pred
+  
+  tt2 = numeric()
+  tt2 = data.frame(ESPECIE = especie[e], BIN = seq(1, 5, 1), PROP_OBS = prop_new_obs, PROP_EST = prop_new_est)
+  
+  temporal2 = rbind(temporal2, tt2) # almacena por cada especie
+}
+
+
+long_temp2 <- temporal2 %>%
+  pivot_longer(cols = c("PROP_OBS","PROP_EST"),
+               names_to = c("kind","junk"),names_sep = " ") %>%
+  select(-junk)
+
+complot_year<- long_temp2 %>%
+  ggplot() +
+  aes(x = BIN, y = value) +
+  geom_line(aes(col=kind)) +
+  theme(title = element_text(angle = 0, hjust = 0.5, size=15, colour="black")) +
+  labs(x="length bin", y="proportion value", title="Length composition aggregated by year catch data") +
+  facet_wrap(.~ESPECIE) +
+  theme(legend.position = "bottom") +
+  labs(col="") +
+  guides(col = guide_legend(nrow = 1))
+
+#ggsave(paste0(plotdir,"complot_year_catch.jpeg"), complot_year)#, width=3000, height=2500, res=250)
+print(complot_year)
+
+
+
+
+
+temporal2 = numeric()
+especie = numeric(); especie = sort(unique(temp.surv$species)) # especies
+for(e in 1:length(especie)){
+  pos1 = numeric(); pos1 = which(temp.surv$species == especie[e])
+  
+  temporal1 = numeric()
+  year = numeric(); year = sort(unique(temp.surv$year[pos1])) # ano
+  for(y in 1:length(year)){
+    pos2 = numeric(); pos2 = which(temp.surv$year[pos1] == year[y])
+    
+    N = numeric(); N = unique(temp.surv$InpN[pos1][pos2]) # sample size para el estrato especie ano
+    n_ejemplares_obs = numeric(); n_ejemplares_obs = round(N * temp.surv$obs_value[pos1][pos2] , 0) # crea vector de proporcion por el sample size
+    n_ejemplares_est = numeric(); n_ejemplares_est = round(N * temp.surv$pred_value[pos1][pos2], 0)
+    
+    tt1 = numeric()
+    tt1 = data.frame(YEAR = year[y], BIN = temp.surv$lenbin[pos1][pos2], N = N, N_EJEM_OBS = n_ejemplares_obs, N_EJEM_EST = n_ejemplares_est)
+    
+    temporal1 = rbind(temporal1, tt1) # guarda la proporcion * sample size para la especie seleccionada y ano
+  }
+  
+  bin1_obs = numeric(); bin1_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 1)])
+  bin2_obs = numeric(); bin2_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 2)])
+  bin3_obs = numeric(); bin3_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 3)])
+  bin4_obs = numeric(); bin4_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 4)])
+  bin5_obs = numeric(); bin5_obs = sum(temporal1$N_EJEM_OBS[which(temporal1$BIN == 5)])
+  
+  total_obs = sum(bin1_obs, bin2_obs, bin3_obs, bin4_obs, bin5_obs)
+  prop_new_obs = numeric(); prop_new_obs = c(bin1_obs, bin2_obs, bin3_obs, bin4_obs, bin5_obs) / total_obs
+  
+  bin1_pred = numeric(); bin1_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 1)])
+  bin2_pred = numeric(); bin2_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 2)])
+  bin3_pred = numeric(); bin3_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 3)])
+  bin4_pred = numeric(); bin4_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 4)])
+  bin5_pred = numeric(); bin5_pred = sum(temporal1$N_EJEM_EST[which(temporal1$BIN == 5)])
+  
+  total_pred = sum(bin1_pred, bin2_pred, bin3_pred, bin4_pred, bin5_pred)
+  prop_new_est = numeric(); prop_new_est = c(bin1_pred, bin2_pred, bin3_pred, bin4_pred, bin5_pred) / total_pred
+  
+  tt2 = numeric()
+  tt2 = data.frame(ESPECIE = especie[e], BIN = seq(1, 5, 1), PROP_OBS = prop_new_obs, PROP_EST = prop_new_est)
+  
+  temporal2 = rbind(temporal2, tt2) # almacena por cada especie
+}
+
+long_temp2 <- temporal2 %>%
+  pivot_longer(cols = c("PROP_OBS","PROP_EST"),
+               names_to = c("kind","junk"),names_sep = " ") %>%
+  select(-junk)
+
+complot_year<- long_temp2 %>%
+  ggplot() +
+  aes(x = BIN, y = value) +
+  geom_line(aes(col=kind)) +
+  theme(title = element_text(angle = 0, hjust = 0.5, size=15, colour="black")) +
+  labs(x="length bin", y="proportion value", title="Length composition aggregated by year survey data") +
+  facet_wrap(.~ESPECIE) +
+  theme(legend.position = "bottom") +
+  labs(col="") +
+  guides(col = guide_legend(nrow = 1))
+
+#ggsave(paste0(plotdir,"complot_year_survey.jpeg"), complot_year)#, width=3000, height=2500, res=250)
+print(complot_year)
+
+
+
+temp.surv <- temp.surv %>% dplyr::filter(number ==2)
+
+### survey, species = 1 to 11
+#tiff(paste0(plotdir,"bubbleplot_survey.jpeg"), width=3000, height=2500, res=250)
+temp.surv<-ggplot(temp.surv, aes(x=year, y=lenbin, size = res_abs, color=factor(residual))) +
+  geom_point(alpha=0.7) + theme(title = element_text(angle = 0, hjust = 0.5, size=15, colour="black")) +
+  facet_wrap(.~species) + labs(x="year", y="length bin", title="Pearson residuals")
+#dev.off()
+
+ggsave("plots/pearson_survey2.jpeg",temp.surv, width = 10, height = 7, dpi = 300)#, width=3000, height=2500, res=250)
+
+
+temp.catch <- temp.catch %>% dplyr::filter(number ==2)
+
+temp.catch1<-ggplot(temp.catch, aes(x=year, y=lenbin, size = res_abs, color=factor(residual))) +
+  geom_point(alpha=0.7) + theme(title = element_text(angle = 0, hjust = 0.5, size=15, colour="black")) +
+  facet_wrap(.~species) + labs(x="year", y="length bin", title="Pearson residuals")
+#dev.off()
+
+ggsave("plots/pearson_catch2.jpeg",temp.catch1, width = 10, height = 7, dpi = 300)#, width=3000, height=2500, res=250)
+
+
+
+plot_osa <- list()
+especies<-unique(temp.surv$species)
+for (sp in especies) {
+  
+  survdat <- temp.surv %>%
+    filter(number == 2, species == sp)
+  obs <- survdat %>% 
+    select(year, lenbin, obs_value) %>% 
+    mutate(obs_value = obs_value + 0.00001) %>% 
+    pivot_wider(names_from = "year",
+                values_from = "obs_value") %>% 
+    column_to_rownames(var = "lenbin") %>% 
+    as.matrix()
+  pred <- survdat %>% 
+    select(year, lenbin, pred_value) %>% 
+    pivot_wider(names_from = "year",
+                values_from = "pred_value") %>% 
+    column_to_rownames(var = "lenbin") %>% 
+    as.matrix()
+  res<-resMulti(obs,pred)
+  plot_osa[[sp]] <- res
+}
+
+
+plot_osa$Atlantic_mackerel
+
+tmp <- plot_osa$Atlantic_mackerel
+
+plot(tmp)
+
+ggsave("plots/osa_S1_atlantic_cod.jpeg",tmp, width = 10, height = 7, dpi = 300)#, width=3000, height=2500, res=250)
+
+
+
+plot_osa <- list()
+especies<-unique(temp.catch$species)
+for (sp in especies) {
+  
+  catchdat <- temp.catch %>%
+    filter(number == 2, species == sp)
+  obs <- catchdat %>% 
+    select(year, lenbin, obs_value) %>% 
+    mutate(obs_value = obs_value + 0.00001) %>% 
+    pivot_wider(names_from = "year",
+                values_from = "obs_value") %>% 
+    column_to_rownames(var = "lenbin") %>% 
+    as.matrix()
+  pred <- catchdat %>% 
+    select(year, lenbin, pred_value) %>% 
+    pivot_wider(names_from = "year",
+                values_from = "pred_value") %>% 
+    column_to_rownames(var = "lenbin") %>% 
+    as.matrix()
+  res<-resMulti(obs,pred)
+  plot_osa[[sp]] <- res
+}
+
+
+plot_osa$Atlantic_mackerel
+
+tmp <- plot_osa$Atlantic_mackerel
+
+plot(tmp)
+
+ggsave("plots/osa_S1_atlantic_cod.jpeg",tmp, width = 10, height = 7, dpi = 300)#, width=3000, height=2500, res=250)
+
 
