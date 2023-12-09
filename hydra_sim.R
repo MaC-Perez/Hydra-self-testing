@@ -479,14 +479,17 @@ system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
 
 for (isim in 1:1)
 {
-  system("cp hydra_sim1-ts.dat hydra_sim_GBself_5bin-ts.dat")
-  #file.copy(from="sims/hydra_sim",isim,"-ts", to= "sims/hydra_sim_GBself_5bin-ts", overwrite = recursive, recursive = TRUE,
-         #   copy.mode = TRUE, copy.date = FALSE)
-              system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
+ # system("cp hydra_sim1-ts.dat hydra_sim_GBself_5bin-ts.dat")
+  file.copy(from=paste0("sims/hydra_sim",isim,"-ts.dat"), to= "sims/hydra_sim_GBself_5bin-ts.dat", overwrite = TRUE, recursive = TRUE,
+            copy.mode = TRUE, copy.date = FALSE)
+     system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
               #system("mkdir 001")
-              file.rename(from = "hydra_sim.rep", to = paste0("hydra_sim", isim,".rep"))
+     file.rename(from = "hydra_sim.rep", to = paste0("hydra_sim", isim,".rep"))
               
 }
+
+
+
 
 
 for (i in 1:3)
