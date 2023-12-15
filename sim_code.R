@@ -198,14 +198,9 @@ for (isim in 1:100) {
   
   hydraDataList$observedSurvDiet<-hydraDataList$observedSurvDiet %>% pivot_wider(names_from = "prey")
   
-  #to check if I am getting the correct values
-  #write.csv(diet_comp, file = "diet_comp.csv", row.names = T)
-  
-  # use write_tsDatFile function to save the new ts file with simulated data 
-  #n sim equal to scenario identifier from 1 to 30 simulations 
-  
 }
 
+# change simulated catch and survey biomass data from log scale to the original scale 
 for (isim in 1:100) {  
   
   sim_data[[isim]][["observedBiomass"]][["biomass"]]<-exp(sim_data[[isim]][["observedBiomass"]][["biomass"]])
@@ -213,7 +208,48 @@ for (isim in 1:100) {
   
   }
 
-write_rds(sim_data, "sim_data.rds")
+# save the simulated data object 
+#write_rds(sim_data, "sim_data.rds")
+
+#### WRITE tsDat FUNCTION ####
+source("R/write_tsDatFile.R")
+source("R/read.report.R")
+
+#read original observations (hydraDataList) and simulated data sets (hydraDataList2)
+hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
+hydraDataList2 <- readRDS("sim_data.rds")
+
+
+listOfParameters<-list()
+listOfParameters$outDir<-paste0(getwd(),"/","sims")
+listOfParameters$outputFilename<-"hydra_sim"
+listOfParameters$fillLength <- 2000
+
+for (nsim in 1:100){ 
+  write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
+}
+
+
+#### RUN THE MODEL WITH 100 SIMS ####
+library(here)
+dir<-here()
+dir<-paste0(dir,"/","sims")
+setwd(dir)
+
+#multiple calls to 'system()' given different folders/filenames.
+
+#isim<-1
+#system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
+#file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
+
+for (nsim in 1:2)
+{
+  file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
+  system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
+  file.copy(from = "hydra_sim.rep", to = paste0("rep/hydra_sim",nsim,".rep"))
+  file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
+}
+
 
 #### DIAGNOSTICS ####
 #browseVignettes("hydradata")
@@ -249,9 +285,6 @@ fleet2plot<-sim_obs_catch %>% filter(fishery==2)%>%
   aes(x = year, y = (catch), col = isim) +
   geom_line() +
   facet_wrap(~species, scales = "free",dir="v") +
-  # geom_point(aes(x=year, y=log(obs_value)), col = "red")+
-  #  geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  # theme_minimal() +
   theme(legend.position = "none") +
   labs(x = "Year",
        y = "Catch (t)",
@@ -270,9 +303,6 @@ surv1plot<-sim_obs_bio %>% filter(survey==1)%>%
   aes(x = year, y = (biomass), col = isim) +
   geom_line() +
   facet_wrap(~species, scales = "free") +
-  #geom_point(aes(x=year, y=log(obs_value)), col = "red")+
-  #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  #theme_minimal() +
   theme(legend.position = "none") +
   labs(x = "Year",
        y = "Biomass (t)",
@@ -286,9 +316,6 @@ surv2plot<-sim_obs_bio %>% filter(survey==2)%>%
   aes(x = year, y = (biomass), col = isim) +
   geom_line() +
   facet_wrap(~species, scales = "free") +
-  # geom_point(aes(x=year, y=log(obs_value)), col = "red")+
-  #geom_errorbar(aes(ymin = (log(obs_value)-1.96*cv), ymax = (log(obs_value)+1.96*cv)), col="gray")+
-  #theme_minimal() +
   theme(legend.position = "none") +
   labs(x = "Year",
        y = "Biomass (t)",
@@ -461,43 +488,5 @@ for (sp in especies) {
 }
 
 
-
-#### WRITE tsDat FUNCTION ####
-source("R/write_tsDatFile.R")
-source("R/read.report.R")
-
-hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
-hydraDataList2 <- readRDS("sim_data.rds")
-
-
-listOfParameters<-list()
-listOfParameters$outDir<-paste0(getwd(),"/","sims")
-listOfParameters$outputFilename<-"hydra_sim"
-listOfParameters$fillLength <- 2000
-
-for (nsim in 1:100){ 
-  write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
-}
-
-
-#### RUN THE MODEL WITH 100 SIMS ####
-library(here)
-dir<-here()
-dir<-paste0(dir,"/","sims")
-setwd(dir)
-
-#multiple calls to 'system()' given different folders/filenames.
-
-#isim<-1
-#system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
-#file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
-
-for (nsim in 1:2)
-{
-  file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
-  system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
-  file.copy(from = "hydra_sim.rep", to = paste0("rep/hydra_sim",nsim,".rep"))
-  file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
-}
 
 
