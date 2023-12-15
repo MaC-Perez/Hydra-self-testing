@@ -10,11 +10,54 @@ library(hydradata)
 hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 #rep file model (check latest version) 
 repfile <- "inputs/initial_run/hydra_sim.rep"
-output_initialrun<-reptoRlist(repfile)
+output_OM<-reptoRlist(repfile)
 
-#repfile<-read.table("inputs/initial_run/pmse_predvals.out", header = FALSE, skip=2, nrow=336)
-#colnames(repfile)<-c("survey", "year", "spp", "area", "pred_survey")
+est_bio_OM <- output_OM[["EstBsize"]] 
+est_bio_OM <- est_bio_OM %>%  
+  #rowSums() %>% 
+  tibble() %>% 
+  mutate(bio = rowSums(across(where(is.numeric)))) %>% 
+  mutate(species = rep(rep(hydraDataList$speciesList, each = hydraDataList$Nyrs)),
+         year  = rep((1:hydraDataList$Nyrs),length(hydraDataList$speciesList)),
+         log_bio = ifelse(bio>0,log(bio),NA)) 
+  
+plot_bio_OM<-est_bio_OM %>% 
+              ggplot() +
+              geom_line(aes(x = year, y = bio)) +
+              facet_wrap(~species, scales = "free") +
+              theme_minimal() +
+              labs(x = "Year",
+                   y = "Biomass (t)",
+                   title = "Time series of estimated biomass")
 
+#ggsave("biomassOM.jpeg", plot_bio_OM, width=10, height=5, dpi = 300)#, width=3000, height=2500, res=250)
+
+
+est_F_OM <- output_OM[["EstFsize"]] 
+est_F_OM <- est_F_OM %>%  
+  #rowSums() %>% 
+  tibble() %>% 
+  mutate(fmort = rowSums(across(where(is.numeric)))) %>% 
+  mutate(species = rep(rep(hydraDataList$speciesList, each = hydraDataList$Nyrs)),
+         year  = rep((1:hydraDataList$Nyrs),length(hydraDataList$speciesList)))
+
+plot_F_OM<-est_F_OM %>% 
+  ggplot() +
+  geom_line(aes(x = year, y = fmort)) +
+  facet_wrap(~species, scales = "free") +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Fishing mortality",
+       title = "Time series of estimated fishing mortality")
+
+est_R_OM <- output_OM[["EstRec"]] 
+est_R_OM <- est_R_OM %>%  
+  #rowSums() %>% 
+  tibble() %>% 
+  mutate(species = rep(rep(hydraDataList$speciesList, each = hydraDataList$Nyrs)),
+         year  = rep((1:hydraDataList$Nyrs),length(hydraDataList$speciesList)))
+
+#ggsave("F_OM.jpeg", plot_F_OM, width=10, height=5, dpi = 300)#, width=3000, height=2500, res=250)
 #### READ CATCH AND SURVEY OBSERVED BIOMASS ####
 obs_surveyB <- hydraDataList$observedBiomass
 obs_catchB <- hydraDataList$observedCatch
@@ -46,6 +89,7 @@ output = purrr::map(filelist, function(x)reptoRlist(x))
 
 #### PLOT 100 FITS BIOMASS ####
 
+setwd("C:/Users/macristina.perez/Documents/GitHub/Hydra-self-testing")
 
 fit_data <- NULL
 nsim <- 1
@@ -65,13 +109,8 @@ for (nsim in 1:100) {
   mutate(species = hydraDataList$speciesList[species])
 }
 
-
-
-result <- lapply(seq_along(fit_data), function(x) {
-  Map(cbind, fit_data[[x]], 
-      Identifier = paste(x, seq_along(dfs_list[[x]]), sep = '.'))
-})
-
+#fit_data<-purrr::map_dfr(fit_data,nsim,.id = "isim")
+#fit_data
 
 surv1plot<-sim_obs_bio %>% filter(survey==1)%>%
   ggplot() +
@@ -126,7 +165,22 @@ p1 <- survey_obspred %>%
       
 p1  
 
-#ggsave("plots/biomasspred.jpeg", p1, width=10, height=5, dpi = 300)#, width=3000, height=2500, res=250)
+p1 <- survey_obspred %>% 
+  filter(survey == 1) %>% 
+  ggplot() +
+  aes(x= year, y = log_pred, group = species, col=factor(survey)) +
+  #geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
+  geom_point() +
+  geom_line(data= est_bio, aes(x = year, y = log_bio, group= model, col = model), cex=0.2) +
+  facet_wrap(~species, scales = "free_y") +
+  theme(legend.position = "none") +
+  labs(x = "Year",
+       y = "log Biomass",
+       title = "Time series of estimated LN(biomass)")
+
+p1  
+
+#ggsave("plots/biomass_pred_OM.jpeg", p1, width=10, height=5, dpi = 300)#, width=3000, height=2500, res=250)
 
 plot_bio<-est_bio %>% 
           ggplot() +
@@ -195,7 +249,7 @@ plot_pred_catch<- est_catch %>%
   ggplot() +
   aes(x = year, y = pred, col = model) +
   geom_line() +
-  geom_point(aes(x = year, y = observed, col = model), cex=0.8) +
+  geom_point(aes(x = year, y = observed, col = model), cex=0.5) +
   facet_wrap(~species, scales = "free") +
   theme(legend.position = "none") +
   labs(x = "Year",
@@ -208,12 +262,16 @@ plot_pred_catch
 
 p100 <- catch_obspred %>% 
           ggplot() +
-          aes(x= year, y = log_obs, group = species, col="red") +
-          geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
+          aes(x= year, y = log_pred, group = species, col="red") +
+          #geom_errorbar(aes(ymin = log_lo, ymax = log_hi)) +
           geom_point() +
           geom_line(data= est_catch, aes(x = year, y = pred, group =model, col = model), cex=0.5) +
           facet_wrap(~species, scales = "free_y") +
-          theme(legend.position = "none") 
+          theme(legend.position = "none") +
+          labs(x = "Year",
+          y = "Pred log catch",
+          title = "Time series of log estimated catch")
+
 
 p100
 
@@ -325,7 +383,7 @@ plot_Rec
 
 plot_logRec<-est_Rec %>% 
   ggplot() +
-  geom_line(aes(x = year, y = log_rec, col= model, group= model)) +
+  geom_line(aes(x = year, y = log_rec, col= model, group= model), size=0.5) +
   scale_x_discrete(limits= level_order)+
   facet_wrap(~species, scales = "free") +
   theme(legend.position = "none") +
@@ -336,7 +394,7 @@ plot_logRec<-est_Rec %>%
 
 plot_logRec
 
-#ggsave("plots/plot_logRec.jpeg", plot_logRec, dpi = 300)#, width=3000, height=2500, res=250)
+#ggsave("plots/plot_logRec.jpeg", plot_logRec,  width=10, height=5, dpi = 300)#, width=3000, height=2500, res=250)
 
 
 
