@@ -92,7 +92,7 @@ output = purrr::map(filelist, function(x)reptoRlist(x))
 setwd("C:/Users/macristina.perez/Documents/GitHub/Hydra-self-testing")
 
 fit_data <- NULL
-nsim <- 1
+#nsim <- 1
 
 for (nsim in 1:100)
 {
@@ -114,7 +114,7 @@ for (nsim in 1:100) {
 
 surv1plot<-sim_obs_bio %>% filter(survey==1)%>%
   ggplot() +
-  aes(x = year, y = log(biomass), col = isim) +
+  aes(x = year, y = (biomass), col = isim) +
   geom_line() +
   facet_wrap(~species, scales = "free") +
   theme(legend.position = "none") +

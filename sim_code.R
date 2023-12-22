@@ -4,7 +4,7 @@ library(tidyverse)
 #library(magrittr)
 #library(FSA)
 library(hydradata)
-
+# rm(list = ls())
 
 ### Read observed and estimated values, Hydra data list from Sarahs 4 species scenario
 hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
@@ -38,7 +38,7 @@ catch<-indexfits[[2]]%>%
 # create simulation object
 set.seed(23)
 sim_data <- NULL
-isim <- 1
+#isim <- 1
 
 for (isim in 1:100) {  
   
@@ -46,14 +46,14 @@ for (isim in 1:100) {
   
   ##### SIMULATE CATCH DATA ######
   hydraDataList$observedCatch <- obs_catchB %>%
-    mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),indexfits[[2]]$cv))
+    mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),sd=0.000001)) #indexfits[[2]]$cv
   
   sim_data[[isim]] <- hydraDataList
   
   
   ##### SIMULATE SURVEY BIOMASS DATA ######
   hydraDataList$observedBiomass <- obs_surveyB %>%
-    mutate(biomass = (rnorm(nrow(.), log(indexfits[[1]]$pred_bio),indexfits[[1]]$cv)))
+    mutate(biomass = rnorm(nrow(.), log(indexfits[[1]]$pred_bio),sd=0.000001)) #indexfits[[1]]$cv
   # store simulated object
   sim_data[[isim]] <- hydraDataList
   
@@ -85,7 +85,8 @@ for (isim in 1:100) {
     for(y in 1:length(year)){
       pos2 = numeric(); pos2 = which(obscatch_size$year[pos1]== year[y])
       
-      temp = numeric(); temp = rmultinom(1, unique(obscatch_size$inpN[pos1][pos2]), pred_catchsize[pos1][pos2])
+      temp = numeric(); temp = rmultinom(1, 100, pred_catchsize[pos1][pos2])
+      #temp = numeric(); temp = rmultinom(1, unique(obscatch_size$inpN[pos1][pos2]), pred_catchsize[pos1][pos2])
       temporal1 = c(temporal1, temp)
     }
   }
@@ -132,7 +133,8 @@ for (isim in 1:100) {
       for(y in 1:length(year)){
         pos2 = numeric(); pos2 = which(obssurv_size$year[pos0][pos1]== year[y])
         
-        temp = numeric(); temp = rmultinom(1, unique(obssurv_size$inpN[pos0][pos1][pos2]), pred_survsize[pos0][pos1][pos2])
+        temp = numeric(); temp = rmultinom(1, 100, pred_survsize[pos0][pos1][pos2])
+        #temp = numeric(); temp = rmultinom(1, unique(obssurv_size$inpN[pos0][pos1][pos2]), pred_survsize[pos0][pos1][pos2])
         temporal1 = c(temporal1, temp)
       }
     }
@@ -183,7 +185,8 @@ for (isim in 1:100) {
         for(l in 1:length(lenbin)){
           pos3 = numeric(); pos3 = which(obsdiet_comp$sizebin[pos0][pos1][pos2] == lenbin[l])
           
-          temp = numeric(); temp = rmultinom(1, unique(obsdiet_comp$inpN[pos0][pos1][pos2][pos3]), obsdiet_comp$value[pos0][pos1][pos2][pos3])
+          temp = numeric(); temp = rmultinom(1, 100, obsdiet_comp$value[pos0][pos1][pos2][pos3])
+          #temp = numeric(); temp = rmultinom(1, unique(obsdiet_comp$inpN[pos0][pos1][pos2][pos3]), obsdiet_comp$value[pos0][pos1][pos2][pos3])
           temporal1 = c(temporal1, temp)
         }
       }
@@ -201,15 +204,17 @@ for (isim in 1:100) {
 }
 
 # change simulated catch and survey biomass data from log scale to the original scale 
-for (isim in 1:100) {  
+for (isim in 1:1) {  
   
   sim_data[[isim]][["observedBiomass"]][["biomass"]]<-exp(sim_data[[isim]][["observedBiomass"]][["biomass"]])
   sim_data[[isim]][["observedCatch"]][["catch"]]<-exp(sim_data[[isim]][["observedCatch"]][["catch"]])
   
   }
 
+#write.csv(indexfits[[1]], file = "original.csv", row.names = T)
+
 # save the simulated data object 
-#write_rds(sim_data, "sim_data.rds")
+write_rds(sim_data, "sim_data.rds")
 
 #### WRITE tsDat FUNCTION ####
 source("R/write_tsDatFile.R")
@@ -242,7 +247,7 @@ setwd(dir)
 #system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
 #file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
 
-for (nsim in 1:2)
+for (nsim in 1:100)
 {
   file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
   system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
