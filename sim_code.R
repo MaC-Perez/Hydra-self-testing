@@ -38,22 +38,22 @@ catch<-indexfits[[2]]%>%
 # create simulation object
 set.seed(23)
 sim_data <- NULL
-#isim <- 1
+isim <- 1
 
-for (isim in 1:100) {  
+for (isim in 1:10) {  
   
   # replace index with simulated data
   
   ##### SIMULATE CATCH DATA ######
   hydraDataList$observedCatch <- obs_catchB %>%
-    mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),sd=0.000001)) #indexfits[[2]]$cv
+    mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),indexfits[[2]]$cv)) # sd=0.000001
   
   sim_data[[isim]] <- hydraDataList
   
   
   ##### SIMULATE SURVEY BIOMASS DATA ######
   hydraDataList$observedBiomass <- obs_surveyB %>%
-    mutate(biomass = rnorm(nrow(.), log(indexfits[[1]]$pred_bio),sd=0.000001)) #indexfits[[1]]$cv
+    mutate(biomass = rnorm(nrow(.), log(indexfits[[1]]$pred_bio),indexfits[[1]]$cv)) # sd=0.000001
   # store simulated object
   sim_data[[isim]] <- hydraDataList
   
@@ -204,7 +204,7 @@ for (isim in 1:100) {
 }
 
 # change simulated catch and survey biomass data from log scale to the original scale 
-for (isim in 1:1) {  
+for (isim in 1:10) {  
   
   sim_data[[isim]][["observedBiomass"]][["biomass"]]<-exp(sim_data[[isim]][["observedBiomass"]][["biomass"]])
   sim_data[[isim]][["observedCatch"]][["catch"]]<-exp(sim_data[[isim]][["observedCatch"]][["catch"]])
