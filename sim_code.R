@@ -40,7 +40,7 @@ set.seed(23)
 sim_data <- NULL
 isim <- 1
 
-for (isim in 1:10) {  
+for (isim in 1:100) {  
   
   # replace index with simulated data
   
@@ -204,7 +204,7 @@ for (isim in 1:10) {
 }
 
 # change simulated catch and survey biomass data from log scale to the original scale 
-for (isim in 1:10) {  
+for (isim in 1:100) {  
   
   sim_data[[isim]][["observedBiomass"]][["biomass"]]<-exp(sim_data[[isim]][["observedBiomass"]][["biomass"]])
   sim_data[[isim]][["observedCatch"]][["catch"]]<-exp(sim_data[[isim]][["observedCatch"]][["catch"]])

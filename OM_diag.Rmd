@@ -29,7 +29,7 @@ hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 repfile <- "inputs/hydra_sim.rep"
 #repfile <- "inputs/initial_run/hydra_sim.rep"
 
-#output<-reptoRlist(repfile)
+output<-reptoRlist(repfile)
 
 #### READ CATCH AND SURVEY OBSERVED BIOMASS ####
 obs_surveyB <- hydraDataList$observedBiomass
@@ -115,6 +115,193 @@ for (fleet in unique(catch_obspred$fishery)) {
 ```
 
 #### {-}
+
+#### Estimated Recruitment time series
+
+```{r}
+est_recruits <- output$EstRec %>%
+  as.data.frame() %>% 
+  mutate(species = hydraDataList$speciesList) %>% 
+  select(species, everything()) %>% 
+  pivot_longer(cols = -species, names_to = "year") %>% 
+  mutate(year = as.integer(str_remove(year, "V")),
+         log_rec = ifelse(value > 0,log(value),NA))
+```
+
+```{r}
+est_recruits %>% 
+  ggplot() +
+  aes(x = year, y = value) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Recruitment (thousands)",
+       title = "Time series of estimated recruitment")
+```
+time series of log-recruitment
+
+```{r}
+est_recruits %>% 
+  ggplot() +
+  aes(x = year, y = log_rec) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "ln(Recruitment)",
+       title = "Time series of LN(Recruitment)")
+```
+
+#### Biomass time series
+
+```{r}
+
+# time steps per year varies by model, need to save it
+# updated rep file
+stepperyr <- output$Nstepsyr
+if (length(stepperyr)==0) stepperyr <- nrow(output$EstBsize)/hydraDataList$Nyrs/length(hydraDataList$speciesList)
+
+est_bio <- output$EstBsize %>%
+  rowSums() %>% 
+  as.data.frame() %>% 
+  rename(bio = ".") %>% 
+  mutate(species = rep(hydraDataList$speciesList, each = hydraDataList$Nyrs*stepperyr),
+         year  = rep(1:(hydraDataList$Nyrs*stepperyr),hydraDataList$Nspecies),
+         year = (1-1/stepperyr) + year / stepperyr,  #5 time steps per year
+         log_bio = ifelse(bio>0,log(bio),NA))
+```
+
+
+```{r}
+est_bio %>% 
+  ggplot() +
+  aes(x = year, y = bio) +
+  #geom_point() +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Biomass (t)",
+       title = "Time series of estimated biomass")
+```
+
+
+```{r, eval=FALSE}
+est_bio %>% 
+  ggplot() +
+  aes(x = year, y = log_bio) +
+  #geom_point() +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Biomass (t)",
+       title = "Time series of estimated LN(biomass)")
+```
+
+#### Fishing mortality time series
+
+```{r}
+est_F <- output$Fyr %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=3:ncol(.), names_to = "year", names_prefix = "V") %>% 
+  rename(species = "V1",
+         fleet = "V2") %>% 
+  mutate(year = as.numeric(year)-2,
+         species = hydraDataList$speciesList[species])
+```
+
+```{r}
+est_F %>% 
+  ggplot() +
+  aes(x = year, y = value, col = factor(fleet)) +
+  #geom_point() +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "F",
+       col = "fleet",
+       title = "Time series of estimated fishing mortality")
+```
+```{r}
+nlen <- ncol(output$EstM2size)
+est_M2 <- output$EstM2size %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=1:ncol(.), names_to = "ilen", names_prefix = "V") %>% 
+  mutate(species = rep(hydraDataList$speciesList, each = hydraDataList$Nyrs*nlen*stepperyr),
+         year  = rep(rep(1:(hydraDataList$Nyrs*stepperyr),each=nlen), length(hydraDataList$speciesList)),
+         year = (1-1/stepperyr) + year / stepperyr) %>%
+  I()
+```
+
+```{r}
+est_M2 %>% 
+  ggplot() +
+  aes(x = year, y = value, col = factor(ilen)) +
+  #geom_point() +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "M2",
+       col = "length bin",
+       title = "Time series of estimated predation mortality") +
+  #theme(legend.position = "bottom") +
+  #    labs(col="") +
+  #    guides(col = guide_legend(nrow = 1))
+  NULL
+```
+#### Survey selectivity
+
+```{r}
+survey_sel <- output$survey_sel %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols = 3:ncol(.), names_prefix = "V", names_to = "ilen") %>% 
+  rename(species = "V1",
+         survey = "V2") %>% 
+  mutate(ilen = as.numeric(ilen) - 2,
+         species = hydraDataList$speciesList[species]) %>% 
+  I()
+```
+```{r}
+survey_sel %>% 
+  ggplot() +
+  aes(x=ilen, y = value, col = factor(survey)) +
+  geom_line() +
+  facet_wrap(~species) +
+  labs(x = "length bin",
+       y = "selectivity",
+       col = "survey") +
+  NULL
+```
+
+#### Fishery selectivity
+
+```{r}
+survey_sel <- output$fishsel %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols = 3:ncol(.), names_prefix = "V", names_to = "ilen") %>% 
+  rename(species = "V1",
+         fleet = "V2") %>% 
+  mutate(ilen = as.numeric(ilen) - 2,
+         species = hydraDataList$speciesList[species]) %>% 
+  I()
+```
+```{r}
+survey_sel %>% 
+  ggplot() +
+  aes(x=ilen, y = value, col = factor(fleet)) +
+  geom_line() +
+  facet_wrap(~species) +
+  labs(x = "length bin",
+       y = "selectivity",
+       col = "fleet") +
+  NULL
+```
 #### size comps
 
 ```{r, echo = FALSE}
