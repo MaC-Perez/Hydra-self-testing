@@ -7,16 +7,34 @@ library(hydradata)
 # rm(list = ls())
 
 ### Read observed and estimated values, Hydra data list from Sarahs 4 species scenario
-hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
+hydraDataList <- readRDS("inputs/Sarah_files/hydra_sim_GBself_5bin.rds")
+
+hydraDataList$observedBiomass<- hydraDataList[["observedBiomass"]]%>%  
+  filter(survey==1)
+hydraDataList$observedSurvSize<-hydraDataList[["observedSurvSize"]]%>%  
+  filter(survey==1)
+hydraDataList$observedSurvDiet<-hydraDataList[["observedSurvDiet"]]%>%  
+  filter(survey==1)
+hydraDataList$Nsurveys<-(Nsurveys=1)
+hydraDataList$Nsurvey_obs<-(Nsurvey_obs=166)
+hydraDataList$Nsurvey_size_obs<-(Nsurvey_size_obs=166)
+hydraDataList$Ndietprop_obs<-(Ndietprop_obs=60)
+
 #rep file model (check latest version) 
-repfile <- "inputs/initial_run/hydra_sim.rep"
+#repfile <- "inputs/initial_run/hydra_sim.rep"
+repfile <- "inputs/mod01_1_survey/hydra_sim.rep"
+
 output<-reptoRlist(repfile)
 
 #repfile<-read.table("inputs/initial_run/pmse_predvals.out", header = FALSE, skip=2, nrow=336)
 #colnames(repfile)<-c("survey", "year", "spp", "area", "pred_survey")
 
 #### READ CATCH AND SURVEY OBSERVED BIOMASS ####
-obs_surveyB <- hydraDataList$observedBiomass
+# 2 surveys use this line 
+#obs_surveyB <- hydraDataList$observedBiomass
+# 1 survey use this line
+obs_surveyB <- hydraDataList$observedBiomass %>% 
+  filter(survey==1)
 obs_catchB <- hydraDataList$observedCatch
 
 biorows <- dim(obs_surveyB)[1]
@@ -52,6 +70,7 @@ for (isim in 1:100) {
   
   
   ##### SIMULATE SURVEY BIOMASS DATA ######
+  # if you have one survey
   hydraDataList$observedBiomass <- obs_surveyB %>%
     mutate(biomass = rnorm(nrow(.), log(indexfits[[1]]$pred_bio),indexfits[[1]]$cv)) # sd=0.000001
   # store simulated object
@@ -101,8 +120,9 @@ for (isim in 1:100) {
   
   
   #### SIMULATE SURVEY SIZE COMPOSITION DATA ####
-  
-  obssurv_size <- hydraDataList$observedSurvSize %>% tibble()
+# remove  %>% filter(survey==1) if you have 2 surveys
+  obssurv_size <- hydraDataList$observedSurvSize %>% 
+    filter(survey==1)%>% tibble()
   obssurv_size <- obssurv_size %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
     
     mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
@@ -214,19 +234,21 @@ for (isim in 1:100) {
 #write.csv(indexfits[[1]], file = "original.csv", row.names = T)
 
 # save the simulated data object 
-write_rds(sim_data, "sim_data.rds")
+#write_rds(sim_data, "sim_data.rds")
+write_rds(sim_data, "sim_data_1survey.rds")
 
 #### WRITE tsDat FUNCTION ####
 source("R/write_tsDatFile.R")
 source("R/read.report.R")
 
 #read original observations (hydraDataList) and simulated data sets (hydraDataList2)
-hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
-hydraDataList2 <- readRDS("sim_data.rds")
+#hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
+#hydraDataList2 <- readRDS("sim_data.rds")
+hydraDataList2 <- readRDS("sim_data_1survey.rds")
 
 
 listOfParameters<-list()
-listOfParameters$outDir<-paste0(getwd(),"/","sims")
+listOfParameters$outDir<-paste0(getwd(),"/","sims","/","1_survey")
 listOfParameters$outputFilename<-"hydra_sim"
 listOfParameters$fillLength <- 2000
 
@@ -238,7 +260,9 @@ for (nsim in 1:100){
 #### RUN THE MODEL WITH 100 SIMS ####
 library(here)
 dir<-here()
-dir<-paste0(dir,"/","sims")
+#dir<-paste0(dir,"/","sims","/","initial")
+dir<-paste0(dir,"/","sims","/","1_survey")
+
 setwd(dir)
 
 #multiple calls to 'system()' given different folders/filenames.
@@ -246,7 +270,7 @@ setwd(dir)
 #isim<-1
 #system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
 #file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
-
+nsim<-1
 for (nsim in 1:100)
 {
   file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
@@ -255,8 +279,7 @@ for (nsim in 1:100)
   file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
 }
 
-
-#### DIAGNOSTICS ####
+#### SIMULATED DATA PLOTS ####
 #browseVignettes("hydradata")
 
 source("R/read.report.R")
@@ -264,7 +287,8 @@ source("R/gettables.R")
 
 library(ggforce)
 library(tidyverse)
-hydraDataList2 <- readRDS("sim_data.rds")
+hydraDataList <- readRDS("inputs/Sarah_files/hydra_sim_GBself_5bin.rds")
+hydraDataList2 <- readRDS("sim_data_1survey.rds")
 
 #### PLOT SIM CATCH ####
 
