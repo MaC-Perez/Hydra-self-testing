@@ -29,7 +29,7 @@ library(compResidual)
 hydraDataList <- readRDS("inputs/Sarah_files/hydra_sim_GBself_5bin.rds")
 
 #READ FITS FROM SARAHS DATA SETS
-repfile <- "inputs/mod01_1_survey/hydra_sim.rep"
+repfile <- "inputs/mod_04/hydra_sim.rep"
 #repfile <- "inputs/initial_run/hydra_sim.rep"
 
 output<-reptoRlist(repfile)
@@ -271,6 +271,37 @@ est_M2 %>%
   NULL
 ```
 
+#### M Natural mortality
+
+```{r, echo=F}
+nlen <- ncol(output$EstM2size)
+est_M <- (output$EstM2size+output$EstM1size)%>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=1:ncol(.), names_to = "ilen", names_prefix = "V") %>% 
+  mutate(species = rep(hydraDataList$speciesList, each = hydraDataList$Nyrs*nlen*stepperyr),
+         year  = rep(rep(1:(hydraDataList$Nyrs*stepperyr),each=nlen), length(hydraDataList$speciesList)),
+         year = (1-1/stepperyr) + year / stepperyr) %>%
+  I()
+```
+
+```{r, echo=F}
+est_M %>% 
+  ggplot() +
+  aes(x = year, y = value, col = factor(ilen)) +
+  #geom_point() +
+  geom_line() +
+  facet_wrap(~species, scales = "free") +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "M",
+       col = "length bin",
+       title = "Time series of estimated natural mortality") +
+  #theme(legend.position = "bottom") +
+  #    labs(col="") +
+  #    guides(col = guide_legend(nrow = 1))
+  NULL
+```
+
 #### Survey selectivity
 
 ```{r, echo=F}
@@ -357,11 +388,10 @@ selec_fleet %>%
 
 ```{r, echo = FALSE}
 # if you have 2 surveys use this line
-# obs_survey <- hydraDataList$observedSurvSize  %>% 
+# obs_survey <- hydraDataList$observedSurvSize  %>% %>% tibble()
 
 # if you have 1 survey use this line
-obs_survey <- hydraDataList$observedSurvSize  %>% 
-    filter(survey == 1) %>% tibble()
+obs_survey <- hydraDataList$observedSurvSize  %>% filter(survey == 1)  %>% tibble()
 obs_survey <- obs_survey %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
   
   mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
@@ -988,6 +1018,7 @@ for (sp in especies) {
 
   plot_diet[[sp]] <-  pred_obs %>%
     tibble() %>% 
+    #filter(species == sp) %>%
     filter(species == sp & number == 1) %>%
     mutate(prop = as.numeric(prop),
            year = as.numeric(year)) %>% 

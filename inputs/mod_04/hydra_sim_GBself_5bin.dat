@@ -258,7 +258,7 @@
 #  init_int m1_phase            // M1 phase
   -1
 #  init_int oF1_phase           // amount of other food included in the M2 term for the base (predator 1) phase
-   1
+   -1
 #   init_int oFdev_phase          //deviation from base other food for predators 2+ phase
   -1
 #   init_int vuln_phase // phase for vulnerability parameters

@@ -45,9 +45,9 @@
   0 0 0 0
 # survey_selpars, row 1 c, row 2 d, columns 1:Nsurveys:
   1 1
-  # M1: ln_M1ann(1,Nareas,1,Nspecies) cod: 0.29 herring: 0.05 mackerel: 0.05 dogfish: 0.12
- -1.237874356 -2.995732274 -2.995732274 -2.120263536
+  # M1: ln_M1ann(1,Nareas,1,Nspecies) cod: 0.2 herring: 0.05 mackerel: 0.05 dogfish: 0.102
+ -1.609437912 -1.609437912  -1.609437912  -2.282782466
 # ln_otherFood base
-  26
+  23
 # other food devs: otherFood_dev(1,Npred-1)
   0 0 0 
