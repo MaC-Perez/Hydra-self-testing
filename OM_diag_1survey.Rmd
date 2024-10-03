@@ -29,7 +29,7 @@ library(compResidual)
 hydraDataList <- readRDS("inputs/Sarah_files/hydra_sim_GBself_5bin.rds")
 
 #READ FITS FROM SARAHS DATA SETS
-repfile <- "inputs/mod_04/hydra_sim.rep"
+repfile <- "inputs/test/hydra_sim.rep"
 #repfile <- "inputs/initial_run/hydra_sim.rep"
 
 output<-reptoRlist(repfile)
@@ -271,11 +271,35 @@ est_M2 %>%
   NULL
 ```
 
-#### M Natural mortality
+#### M2 predation mortality year
+
+```{r, echo=F}
+total_M <- est_M2 %>%
+  group_by(species, year) %>%
+  summarise(total = sum(value)) %>%
+  ungroup()
+```
+
+```{r, echo=F}
+
+# Graficar la mortalidad total por año para cada especie
+ggplot((total_M) , aes(x = year, y = total, color = as.factor(species), group = species)) +
+  geom_line(size = 1) + 
+  geom_point(size = 2) +
+  labs(title = "M2 by year and specie",
+       x = "year",
+       y = "M2",
+       color = "species") +
+  theme_minimal() +
+  theme(legend.position = "none") + 
+  facet_wrap(~ species, scales = "free_y")  # Crear un panel por especie
+```
+
+#### M total mortality
 
 ```{r, echo=F}
 nlen <- ncol(output$EstM2size)
-est_M <- (output$EstM2size+output$EstM1size)%>% 
+est_M <- (output$EstM2size+output$EstM1size) %>% 
   as.data.frame() %>% 
   pivot_longer(cols=1:ncol(.), names_to = "ilen", names_prefix = "V") %>% 
   mutate(species = rep(hydraDataList$speciesList, each = hydraDataList$Nyrs*nlen*stepperyr),
@@ -432,12 +456,14 @@ diet_catch <- bind_rows(obs_catch, obs_survey)
 
 
 ```{r, echo = FALSE}
-# if you have 2 surveys use this line
+# if you have 2 surveys use these lines
 # obs_diet <- hydraDataList$observedSurvDiet %>% tibble()
 
 # if you have 1 survey use this line 
-obs_diet <- hydraDataList$observedSurvDiet %>% filter(survey == 1) %>%
-  tibble()
+#obs_diet <- hydraDataList$observedSurvDiet %>% filter(survey == 1) %>%
+
+obs_diet <- hydraDataList$observedSurvDiet$survey[hydraDataList$observedSurvDiet$survey == 2] <- 1
+obs_diet <- hydraDataList$observedSurvDiet %>% tibble()
 obs_diet<-obs_diet %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
   mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
     species = hydraDataList$speciesList[species],
