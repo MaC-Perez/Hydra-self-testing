@@ -319,7 +319,7 @@ est_M %>%
   labs(x = "Year",
        y = "M",
        col = "length bin",
-       title = "Time series of estimated natural mortality") +
+       title = "Time series of natural mortality") +
   #theme(legend.position = "bottom") +
   #    labs(col="") +
   #    guides(col = guide_legend(nrow = 1))

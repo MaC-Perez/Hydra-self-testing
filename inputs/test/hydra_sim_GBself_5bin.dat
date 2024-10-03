@@ -369,7 +369,7 @@
   1 0 0 1
   1 1 1 1
   1 0 0 1
-  1 0 0 0
+  1 0 0 1
 #  init_matrix preferred_wtratio(1,Nareas,1,Nspecies)     //pred sizebins
   0.5 0.5 0.5 0.5
 #  init_vector sd_sizepref(1,Nspecies)              //pred sizebins
