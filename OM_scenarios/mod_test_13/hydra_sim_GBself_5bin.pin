@@ -47,8 +47,8 @@
   4.127134385
   3.401197382
 # M1: ln_M1ann(1,Nareas,1,Nspecies) cod: 0.2 herring: 0.05 mackerel: 0.05 dogfish: 0.102
-  -1.237874356  -1.049822124  -1.609437912  -2.282782466
+  -1.237874356  -0.7985076962  -1.609437912  -2.282782466
 # ln_otherFood base
-  17 #19
+  16.5 #19
 # other food devs: otherFood_dev(1,Npred-1)
   0 0 0 
