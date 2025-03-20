@@ -366,10 +366,10 @@
 #  init_matrix intake_beta(1,Nareas,1,Nspecies)
   0.11 0.11 0.11 0.11
 #  init_3darray isprey(1,Nareas,1,Nspecies,1,Nspecies)     //preds in columns, prey in rows
-  0 0 0 0
   1 0 0 1
   1 0 0 1
-  0 0 0 0
+  1 0 0 1
+  1 0 0 1
 #  init_matrix preferred_wtratio(1,Nareas,1,Nspecies)     //pred sizebins
   0.5 0.5 0.5 0.5
 #  init_vector sd_sizepref(1,Nspecies)              //pred sizebins
