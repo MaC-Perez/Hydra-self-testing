@@ -26,10 +26,10 @@ library(compResidual)
 ```{r, echo=F}
 
 #READ SARAHS DATA SETS
-hydraDataList <- readRDS("inputs/Sarah_files/hydra_sim_GBself_5bin.rds")
+hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 
 #READ FITS FROM SARAHS DATA SETS
-repfile <- "inputs/mod_test_08/hydra_sim.rep"
+repfile <- "OM_scenarios/mod_test_10/hydra_sim.rep"
 #repfile <- "inputs/initial_run/hydra_sim.rep"
 
 output<-reptoRlist(repfile)
@@ -487,6 +487,7 @@ obs_diet<-obs_diet %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
   mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
     species = hydraDataList$speciesList[species],
     label = rep("diet",nrow(.))) %>%
+  filter(!species %in% c("Atlantic_herring", "Atlantic_mackerel")) %>% # Remove specific species
   I()
 
 
