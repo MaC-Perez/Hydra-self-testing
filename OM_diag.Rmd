@@ -1,7 +1,9 @@
 ---
 title: "Hydra OM diagnostics"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
