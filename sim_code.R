@@ -445,29 +445,38 @@ print(fleet2_plot)
 #######
 ## PLOT FITTED DATA
 ####
-hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 source("R/read.report2.R")
 source("R/gettables.R")
 
+hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
+obs_surveyB <- hydraDataList$observedBiomass %>% 
+  filter(survey == 1)
 
-#READ FITS FROM SARAHS DATA SETS
-rep_files <- paste0("sims/OM/rep/hydra_sim", 1:1, ".rep")
-#repfile <- "inputs/initial_run/hydra_sim.rep"
-
-# Read all rep files into a named list
-rep_outputs <- lapply(rep_files, function(file) {
-  cat("Reading:", file, "\n")
-  reptoRlist2(file)
-})
-
-obs_surveyB <- hydraDataList$observedBiomass
 obs_catchB <- hydraDataList$observedCatch
 
 biorows <- dim(obs_surveyB)[1]
 catchrows <- dim(obs_catchB)[1]
 
+#READ FITS FROM OM
+OMrepfile <- "OM_scenarios/OM/hydra_sim.rep"
+OMoutput<-reptoRlist(OMrepfile)
+
+indexfits <- gettables(OMrepfile, biorows, catchrows)
+OM_catch <- indexfits[[2]]
+
+#READ FITS FROM RUNS WITH 100 DATA SETS
+rep_files_sim <- paste0("sims/OM/rep/hydra_sim", 1:100, ".rep")
+#repfile <- "inputs/initial_run/hydra_sim.rep"
+
+# Read all rep files into a named list
+rep_simoutputs <- lapply(rep_files_sim, function(file) {
+  cat("Reading:", file, "\n")
+  reptoRlist2(file)
+})
+
+
 # Use your existing rep_outputs and gettables()
-all_catch_fits <- purrr::map_dfr(seq_along(rep_outputs), function(i) {
+all_catch_fits <- purrr::map_dfr(seq_along(rep_simoutputs), function(i) {
   cat("Extracting from:", rep_files[i], "\n")
   
   # Use corresponding file name to extract text-based fits with gettables()
@@ -489,21 +498,54 @@ all_catch_fits <- purrr::map_dfr(seq_along(rep_outputs), function(i) {
 })
 
 
-#### READ CATCH AND SURVEY OBSERVED BIOMASS ####
-obs_surveyB <- hydraDataList$observedBiomass
-obs_catchB <- hydraDataList$observedCatch
+# Estimated catch summary (from rep files)
+est_summary <- all_catch_fits %>%
+  group_by(year, species, fishery) %>%
+  summarise(
+    mean_log_est = mean(log_pred, na.rm = TRUE),
+    lo = quantile(log_pred, 0.025, na.rm = TRUE),
+    hi = quantile(log_pred, 0.975, na.rm = TRUE),
+    .groups = "drop"
+  )
 
-biorows <- dim(obs_surveyB)[1]
-catchrows <- dim(obs_catchB)[1]
+true_summary <- OM_catch %>%
+  mutate(
+    log_true = log(catch + 1e-07),
+    species = hydraDataList$speciesList[species]  # optional: convert to names
+  ) %>%
+  group_by(year, species, fishery) %>%
+  summarise(mean_log_true = mean(log_true, na.rm = TRUE), .groups = "drop")
 
-#create a table with estimated and observed values
-indexfits <- gettables(repfile, biorows, catchrows)
+# True catch summary (from OM sims, sim_obs_catch)
+#true_summary <- obs_catchB %>%
+#  group_by(year, species, fishery) %>%
+#  summarise(
+#    mean_log_true = mean(log(catch + 1e-07), na.rm = TRUE),
+#    .groups = "drop"
+#  ) 
+
+est_summary <- est_summary %>%
+  mutate(species = match(species, hydraDataList$speciesList))
+
+plot_data <- left_join(est_summary, true_summary,
+                       by = c("year", "species", "fishery"))
+
+plot_data <- plot_data %>%
+  mutate(species = hydraDataList$speciesList[species])
 
 
-
-
-
-
+ggplot(plot_data, aes(x = year)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), fill = "blue", alpha = 0.3) +
+  geom_line(aes(y = mean_log_est), color = "blue", size = 1) +
+  geom_line(aes(y = mean_log_true), color = "black", linetype = "dashed", size = 1) +
+  facet_wrap(~species, scales = "free_y") + 
+  labs(
+    title = "Estimated Catch vs. Operating Model Catch",
+    x = "Year",
+    y = "log(Catch)",
+    caption = "Blue: Estimated mean ± 95% CI | Black dashed: OM catch"
+  ) +
+  theme_minimal()
 
 
 
