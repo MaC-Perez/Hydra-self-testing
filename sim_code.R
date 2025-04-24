@@ -3,26 +3,37 @@ source("R/gettables.R")
 library(tidyverse)
 #library(magrittr)
 #library(FSA)
+library(readxl)
 library(hydradata)
 # rm(list = ls())
 
+#surv_dietcomps<-read_xlsx("2surv_dietcomps.xlsx", col_names = TRUE)
+
 ### Read observed and estimated values, Hydra data list from Sarahs 4 species scenario
-hydraDataList <- readRDS("inputs/Sarah_files/hydra_sim_GBself_5bin.rds")
+hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 
 hydraDataList$observedBiomass<- hydraDataList[["observedBiomass"]]%>%  
   filter(survey==1)
 hydraDataList$observedSurvSize<-hydraDataList[["observedSurvSize"]]%>%  
   filter(survey==1)
 hydraDataList$observedSurvDiet<-hydraDataList[["observedSurvDiet"]]%>%  
-  filter(survey==1)
+  filter(species %in% c(1, 4))
+#hydraDataList$observedSurvDiet<-hydraDataList[["observedSurvDiet"]]%>%  
+#  filter(survey==1)
+#hydraDataList$observedSurvDiet<-surv_dietcomps
 hydraDataList$Nsurveys<-(Nsurveys=1)
 hydraDataList$Nsurvey_obs<-(Nsurvey_obs=166)
 hydraDataList$Nsurvey_size_obs<-(Nsurvey_size_obs=166)
-hydraDataList$Ndietprop_obs<-(Ndietprop_obs=60)
+hydraDataList[["observedSurvDiet"]][["inpN"]]<-(inpN=25)
+#hydraDataList2[[1]][["observedCatch"]][["cv"]]
+hydraDataList[["observedBiomass"]][["cv"]]<-(cv=0.2)
+hydraDataList$Ndietprop_obs<-(Ndietprop_obs=112)
+
+
 
 #rep file model (check latest version) 
 #repfile <- "inputs/initial_run/hydra_sim.rep"
-repfile <- "inputs/mod01_1_survey/hydra_sim.rep"
+repfile <- "OM_scenarios/OM/hydra_sim.rep"
 
 output<-reptoRlist(repfile)
 
@@ -79,94 +90,111 @@ for (isim in 1:100) {
   
   #### SIMULATE CATCH SIZE COMPOSITION DATA ####
   
-  obscatch_size <- hydraDataList$observedCatchSize %>% tibble()
-  obscatch_size<-obscatch_size %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
+  obs_catch <- hydraDataList$observedCatchSize %>% tibble()
+  obs_catch<-obs_catch %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
     mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-           label = rep("catch",nrow(.)))#,
-  #species = hydraDataList$speciesList[species])# %>% filter(value != -999)
-  #obscatch_size<- obscatch_size %>% filter(value != -999)
-  obscatch_size$value[which(obscatch_size$value == -999)] = 0.000001
-  obscatch_size <- select(obscatch_size, -label)
+           label = rep("catch",nrow(.)))# %>% filter(value != -999)
+  obs_catch$value[which(obs_catch$value == -999)] = 0.00001
   
-  pred_catchsize<-output$pred_catch_size
-  nll_catch<-output$nll_catch_size
+  pred_catch<-output$pred_catch_size
+  obs_catch$pred_catch<-pred_catch
+
+  obs_catch <-obs_catch %>% 
+    mutate(value=pred_catch) %>%
+    select(-pred_catch)
   
-  #hydraDataList$observedCatchSize <- obscatch_size %>% 
-  #  mutate(value = (rmultinom(1, obscatch_size$inpN, pred_catchsize)))
-  # store simulated object
-  #sim_data[[isim]] <- hydraDataList
+  
+  # Agrupar por combinaciones únicas de fishery, species y year
+  group_keys <- obs_catch %>%
+    select(fishery, species, year) %>%
+    distinct()
   
   temporal1 = numeric()
-  especie = numeric(); especie = sort(unique(obscatch_size$species)) # especies
-  for(e in 1:length(especie)){
-    pos1 = numeric(); pos1 = which(obscatch_size$species == especie[e])
-    year = numeric(); year = sort(unique(obscatch_size$year[pos1]))
-    for(y in 1:length(year)){
-      pos2 = numeric(); pos2 = which(obscatch_size$year[pos1]== year[y])
-      
-      temp = numeric(); temp = rmultinom(1, 100, pred_catchsize[pos1][pos2])
-      #temp = numeric(); temp = rmultinom(1, unique(obscatch_size$inpN[pos1][pos2]), pred_catchsize[pos1][pos2])
-      temporal1 = c(temporal1, temp)
-    }
+  # Iterar por grupo
+  for (i in 1:nrow(group_keys)) {
+    this_group <- group_keys[i, ]
+    
+    # Subgrupo para esa combinación
+    subgroup <- obs_catch %>%
+      filter(
+        fishery == this_group$fishery,
+        species == this_group$species,
+        year == this_group$year
+      ) %>%
+      arrange(lenbin)
+    
+    probs <- subgroup$value
+    probs <- probs / sum(probs)  # asegurar que sumen 1
+    sim_counts <- rmultinom(1, size = 100, prob = probs)
+    simulated_props <- as.numeric(sim_counts) / 100
+    
+    temporal1 <- c(temporal1, simulated_props)
   }
   
-  obscatch_size$value = temporal1
-  hydraDataList$observedCatchSize<-obscatch_size
+  # Reemplazar valores simulados
+  obs_catch$value <- temporal1
   
-  hydraDataList$observedCatchSize["value"]<-hydraDataList$observedCatchSize["value"]/hydraDataList$observedCatchSize["inpN"]
-  
-  hydraDataList$observedCatchSize<-hydraDataList$observedCatchSize %>% pivot_wider(names_from = "lenbin") %>%
-    rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
+  # Convertir de nuevo a formato ancho
+  hydraDataList$observedCatchSize <- obs_catch %>%
+    pivot_wider(names_from = lenbin, values_from = value,
+                names_prefix = "sizebin") %>%
+    arrange(fishery, species, year) %>%
+    select(-label)
   
   
   #### SIMULATE SURVEY SIZE COMPOSITION DATA ####
 # remove  %>% filter(survey==1) if you have 2 surveys
-  obssurv_size <- hydraDataList$observedSurvSize %>% 
-    filter(survey==1)%>% tibble()
-  obssurv_size <- obssurv_size %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
+ 
+  obs_survey <- hydraDataList$observedSurvSize  %>% filter(survey == 1)  %>% tibble()
+  obs_survey <- obs_survey %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
     
     mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-           label = rep("survey",nrow(.)))#,
-  #species = hydraDataList$speciesList[species])
-  #surv_size<- surv_size %>% filter(value != -999)
-  obssurv_size$value[which(obssurv_size$value == -999)] = 0.000001
-  obssurv_size <- select(obssurv_size, -label)
+           label = rep("survey",nrow(.)))
+  obs_survey$value[which(obs_survey$value == -999)] = 0.00001
   
-  pred_survsize<-output$pred_survey_size
-  nll_survey<-output$nll_survey_size
+  pred_surv<-output$pred_survey_size
+  obs_survey$pred_surv<-pred_surv
   
-  #hydraDataList$observedSurvSize <- obssurv_size %>% 
-  #  mutate(value = (rmultinom(1, obssurv_size$inpN, pred_survsize)))
-  # store simulated object
-  #sim_data[[isim]] <- hydraDataList
+  obs_survey <-obs_survey %>% 
+    mutate(value=pred_surv) %>%
+    select(-pred_surv)
+  
+  # Agrupar combinaciones únicas
+  group_keys <- obs_survey %>%
+    select(survey, species, year) %>%
+    distinct()
   
   temporal1 = numeric()
-  number = numeric(); number = sort(unique(obssurv_size$survey))
-  for (n in 1:length(number)) {
-    pos0 = numeric(); pos0 = which(obssurv_size$survey == number[n])
+ 
+  # Simulación por grupo
+  for (i in 1:nrow(group_keys)) {
+    this_group <- group_keys[i, ]
     
-    especie = numeric(); especie = sort(unique(obssurv_size$species[pos0])) # especies
-    for(e in 1:length(especie)){
-      pos1 = numeric(); pos1 = which(obssurv_size$species[pos0] == especie[e])
-      
-      year = numeric(); year = sort(unique(obssurv_size$year[pos0][pos1]))
-      for(y in 1:length(year)){
-        pos2 = numeric(); pos2 = which(obssurv_size$year[pos0][pos1]== year[y])
-        
-        temp = numeric(); temp = rmultinom(1, 100, pred_survsize[pos0][pos1][pos2])
-        #temp = numeric(); temp = rmultinom(1, unique(obssurv_size$inpN[pos0][pos1][pos2]), pred_survsize[pos0][pos1][pos2])
-        temporal1 = c(temporal1, temp)
-      }
-    }
+    subgroup <- obs_survey %>%
+      filter(
+        survey == this_group$survey,
+        species == this_group$species,
+        year == this_group$year
+      ) %>%
+      arrange(lenbin)
+     
+    probs <- subgroup$value
+    probs <- probs / sum(probs)
+    sim_counts <- rmultinom(1, size = 100, prob = probs)
+    simulated_props <- as.numeric(sim_counts) / 100
+    
+    temporal1 <- c(temporal1, simulated_props)
   }
   
-  obssurv_size$value = temporal1
-  hydraDataList$observedSurvSize<-obssurv_size
+  # Reasignar valores simulados
+  obs_survey$value <- temporal1
   
-  hydraDataList$observedSurvSize["value"]<-hydraDataList$observedSurvSize["value"]/hydraDataList$observedSurvSize["inpN"]
-  
-  hydraDataList$observedSurvSize<-hydraDataList$observedSurvSize %>% pivot_wider(names_from = "lenbin") %>%
-    rename(sizebin1 = `1`, sizebin2 = `2`, sizebin3 = `3`, sizebin4 = `4`, sizebin5 = `5`)
+  # Convertir de vuelta a formato ancho
+  hydraDataList$observedSurvSize <- obs_survey %>%
+    pivot_wider(names_from = lenbin, values_from = value,
+    names_prefix = "sizebin") %>%
+    arrange(survey, species, year) %>%
+                select(-label)
   
   #to check if I am getting the correct values
   #write.csv(surv_size, file = "surv_size.csv", row.names = T)
@@ -189,36 +217,37 @@ for (isim in 1:100) {
   hydraDataList$observedSurvDiet
   
   temporal1 = numeric()
-  number = numeric(); number = sort(unique(obsdiet_comp$survey))
-  for (n in 1:length(number)) {
-    pos0 = numeric(); pos0 = which(obsdiet_comp$survey == number[n])
+  # Lista única de combinaciones de grupos
+  group_keys <- obsdiet_comp %>%
+    select(survey, species, year, sizebin) %>%
+    distinct()
+  
+    # Iterar por combinación única
+  for (i in 1:nrow(group_keys)) {
+    this_group <- group_keys[i, ]
     
-    species = numeric(); species = sort(unique(obsdiet_comp$species[pos0])) # especies
-    for(e in 1:length(species)){
-      pos1 = numeric(); pos1 = which(obsdiet_comp$species[pos0] == species[e])
-      
-      year = numeric(); year = sort(unique(obsdiet_comp$year[pos0][pos1]))
-      for(y in 1:length(year)){
-        pos2 = numeric(); pos2 = which(obsdiet_comp$year[pos0][pos1]== year[y])
-        
-        lenbin = numeric(); lenbin = sort(unique(obsdiet_comp$sizebin[pos0][pos1][pos2]))
-        for(l in 1:length(lenbin)){
-          pos3 = numeric(); pos3 = which(obsdiet_comp$sizebin[pos0][pos1][pos2] == lenbin[l])
-          
-          temp = numeric(); temp = rmultinom(1, 100, obsdiet_comp$value[pos0][pos1][pos2][pos3])
-          #temp = numeric(); temp = rmultinom(1, unique(obsdiet_comp$inpN[pos0][pos1][pos2][pos3]), obsdiet_comp$value[pos0][pos1][pos2][pos3])
-          temporal1 = c(temporal1, temp)
-        }
-      }
-    }
+    # Filtrar solo las filas de esa combinación
+    subgroup <- obsdiet_comp %>%
+      filter(
+        survey == this_group$survey,
+        species == this_group$species,
+        year == this_group$year,
+        sizebin == this_group$sizebin
+      )
+    
+    # Obtener proporciones de presa y simular
+    probs <- subgroup$value
+    probs <- probs / sum(probs)  # normalizar
+    simulated_counts <- rmultinom(1, size = 100, prob = probs)
+    simulated_props <- as.numeric(simulated_counts) / 100
+    
+    temporal1 <- c(temporal1, simulated_props)
   }
   
   # replace data with simulated data
   
   obsdiet_comp$value = temporal1
   hydraDataList$observedSurvDiet<-obsdiet_comp
-  hydraDataList$observedSurvDiet["value"]<-hydraDataList$observedSurvDiet["value"]/hydraDataList$observedSurvDiet["inpN"]
-  
   hydraDataList$observedSurvDiet<-hydraDataList$observedSurvDiet %>% pivot_wider(names_from = "prey")
   
 }
@@ -248,7 +277,7 @@ hydraDataList2 <- readRDS("sim_data_1survey.rds")
 
 
 listOfParameters<-list()
-listOfParameters$outDir<-paste0(getwd(),"/","sims","/","1_survey")
+listOfParameters$outDir<-paste0(getwd(),"/","sims","/")
 listOfParameters$outputFilename<-"hydra_sim"
 listOfParameters$fillLength <- 2000
 
@@ -261,7 +290,7 @@ for (nsim in 1:100){
 library(here)
 dir<-here()
 #dir<-paste0(dir,"/","sims","/","initial")
-dir<-paste0(dir,"/","sims","/","1_survey")
+dir<-paste0(dir,"/","sims","/","OM")
 
 setwd(dir)
 
@@ -277,6 +306,9 @@ for (nsim in 1:100)
   system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
   file.copy(from = "hydra_sim.rep", to = paste0("rep/hydra_sim",nsim,".rep"))
   file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
+  file.copy(from = "hydra_sim.cor", to = paste0("cor/hydra_sim",nsim,".cor"))
+  file.copy(from = "hydra_sim.std", to = paste0("std/hydra_sim",nsim,".std"))
+  file.copy(from = "pmse_predvals.out", to = paste0("out/pmse_predvals",nsim,".out"))
 }
 
 #### SIMULATED DATA PLOTS ####
@@ -287,16 +319,129 @@ source("R/gettables.R")
 
 library(ggforce)
 library(tidyverse)
-hydraDataList <- readRDS("inputs/Sarah_files/hydra_sim_GBself_5bin.rds")
+hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 hydraDataList2 <- readRDS("sim_data_1survey.rds")
 
 #### PLOT SIM CATCH ####
+# Combine and label simulation data
+sim_obs_catch<-purrr::map_dfr(hydraDataList2,"observedCatch",.id = "isim") %>%
+   mutate(species = hydraDataList$speciesList[species])
 
-sim_obs_catch<-purrr::map_dfr(hydraDataList2,"observedCatch",.id = "isim")
-sim_obs_catch<- sim_obs_catch %>%
-  mutate(species = hydraDataList$speciesList[species])
+#Summarize across simulations (mean and CI)
+sim_summary <- sim_obs_catch %>%
+  filter(fishery == 1) %>%
+  group_by(year, species) %>%
+  summarise(
+    mean_logcatch = mean(log(catch), na.rm = TRUE),
+    lower_logcatch = quantile(log(catch), 0.025, na.rm = TRUE),
+    upper_logcatch = quantile(log(catch), 0.975, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(source = "Simulated Mean")
 
-fleet1plot<-sim_obs_catch %>% filter(fishery==1)%>%
+# Get the observed catch
+obs_catch <- hydraDataList$observedCatch %>%
+  filter(fishery == 1) %>%
+  mutate(
+    species = hydraDataList$speciesList[species],
+    year = year,
+    mean_logcatch = log(catch),
+    source = "Observed"
+  ) %>%
+  select(year, species, mean_logcatch, source)
+
+# Combine summary + observed into one
+plot_data <- bind_rows(
+  sim_summary %>% select(year, species, mean_logcatch, source),
+  obs_catch
+)
+
+# plot sim data 
+fleet1plot <- ggplot() +
+  # CI ribbon (for simulated only)
+  geom_ribbon(data = sim_summary,
+              aes(x = year, ymin = lower_logcatch, ymax = upper_logcatch),
+              fill = "lightblue", alpha = 0.3) +
+  # Lines for mean and observed
+  geom_line(data = plot_data,
+            aes(x = year, y = mean_logcatch, color = source, linetype = source),
+            linewidth = 1) +
+  facet_wrap(~species, scales = "free", dir = "v") +
+  labs(x = "Year",
+       y = "Catch (log t)",
+       title = "Fleet 1: Simulated catch (mean, CI) vs. Observed",
+       color = "Data Source",
+       linetype = "Data Source") +
+  scale_color_manual(values = c("Simulated Mean" = "blue", "Observed" = "black")) +
+  scale_linetype_manual(values = c("Simulated Mean" = "solid", "Observed" = "dashed")) +
+  theme_minimal()
+
+print(fleet1plot)
+
+#ggsave("fleet1_simcatch_plot.jpeg",
+#       plot = fleet1plot,
+#       width = 10, height = 8, units = "in", dpi = 300)
+
+###
+## fleet 2
+###
+
+# filter and summarize for Fleet 2
+sim_summary_fleet2 <- sim_obs_catch %>%
+  filter(fishery == 2) %>%
+  group_by(year, species, fishery) %>%
+  summarise(
+    mean_logcatch = mean(log(catch), na.rm = TRUE),
+    lower_logcatch = quantile(log(catch), 0.025, na.rm = TRUE),
+    upper_logcatch = quantile(log(catch), 0.975, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(source = "Simulated Mean")
+
+# Get observed catch for Fleet 2
+obs_catch_fleet2 <- hydraDataList$observedCatch %>%
+  filter(fishery == 2) %>%
+  mutate(
+    species = hydraDataList$speciesList[species],
+    mean_logcatch = log(catch),
+    source = "Observed"
+  ) %>%
+  select(year, species, fishery, mean_logcatch, source)
+
+# Combine summary and observed data
+plot_data_fleet2 <- bind_rows(
+  sim_summary_fleet2 %>% select(year, species, fishery, mean_logcatch, source),
+  obs_catch_fleet2
+)
+
+# Plot just Fleet 2
+fleet2_plot <- ggplot() +
+  # Confidence interval ribbon
+  geom_ribbon(data = sim_summary_fleet2,
+              aes(x = year, ymin = lower_logcatch, ymax = upper_logcatch, group = species),
+              fill = "lightblue", alpha = 0.3) +
+  # Lines for simulated mean and observed
+  geom_line(data = plot_data_fleet2,
+            aes(x = year, y = mean_logcatch, color = source, linetype = source),
+            linewidth = 1) +
+  facet_wrap(~species, scales = "free_y", dir = "v") +
+  labs(x = "Year",
+       y = "Catch (log t)",
+       title = "Fleet 2: Simulated catch (mean, CI) vs. Observed",
+       color = "Data Source",
+       linetype = "Data Source") +
+  scale_color_manual(values = c("Simulated Mean" = "blue", "Observed" = "black")) +
+  scale_linetype_manual(values = c("Simulated Mean" = "solid", "Observed" = "dashed")) +
+  theme_minimal()
+
+print(fleet2_plot)
+
+#ggsave("fleet2_simcatch_plot.jpeg",
+ #      plot = fleet2_plot,
+  #     width = 10, height = 8, units = "in", dpi = 300)
+
+# plot sim data 
+fleet2plot<-sim_obs_catch %>% filter(fishery==1)%>%
   ggplot() +
   aes(x = year, y = log(catch), col = isim) +
   geom_line() +
@@ -305,9 +450,9 @@ fleet1plot<-sim_obs_catch %>% filter(fishery==1)%>%
   theme(legend.position = "none") +
   labs(x = "Year",
        y = "Catch (t)",
-       title = "Time series of estimated LN(catch)")
+       title = "Simulated catch")
 
-print(fleet1plot)
+print(fleet2plot)
 
 fleet2plot<-sim_obs_catch %>% filter(fishery==2)%>%
   ggplot() +
@@ -317,9 +462,10 @@ fleet2plot<-sim_obs_catch %>% filter(fishery==2)%>%
   theme(legend.position = "none") +
   labs(x = "Year",
        y = "Catch (t)",
-       title = "Time series of estimated LN(catch)")
+       title = "Simulated catch")
 
 print(fleet2plot)
+
 
 #### PLOT SIM SURVEY BIOM ####
 
@@ -335,22 +481,22 @@ surv1plot<-sim_obs_bio %>% filter(survey==1)%>%
   theme(legend.position = "none") +
   labs(x = "Year",
        y = "Biomass (t)",
-       title = "Time series of estimated LN(biomass)")
+       title = "Simulated biomass")
 
 print(surv1plot)
 
 
-surv2plot<-sim_obs_bio %>% filter(survey==2)%>%
-  ggplot() +
-  aes(x = year, y = (biomass), col = isim) +
-  geom_line() +
-  facet_wrap(~species, scales = "free") +
-  theme(legend.position = "none") +
-  labs(x = "Year",
-       y = "Biomass (t)",
-       title = "Time series of estimated LN(biomass)")
-
-print(surv2plot)
+#surv2plot<-sim_obs_bio %>% filter(survey==2)%>%
+#  ggplot() +
+#  aes(x = year, y = (biomass), col = isim) +
+#  geom_line() +
+#  facet_wrap(~species, scales = "free") +
+#  theme(legend.position = "none") +
+#  labs(x = "Year",
+#       y = "Biomass (t)",
+#       title = "Time series of estimated LN(biomass)")
+#
+#print(surv2plot)
 
 #### PLOT SIM LENGHT SURVEY ####
 
@@ -387,30 +533,30 @@ plot_surv$Atlantic_herring
 plot_surv$Atlantic_mackerel
 plot_surv$Spiny_dogfish
 
-sp<-1
-plot_surv <- list()
-especies<-unique(sim_surv_lenght$species)
-for (sp in especies) {
-  
-  temp_size<-sim_surv_lenght %>% filter(species == sp & survey==2) %>%
-    group_by(year) %>%
-    summarize(mu_ss=mean(inpN))
-  
-  plot_surv[[sp]] <- sim_surv_lenght %>% filter (species==sp & survey==2) %>%
-    ggplot() +
-    aes(x=lenbin, y = value) +
-    geom_line(aes(col = isim)) +
-    facet_wrap(~year, dir="v") +
-    geom_text(data=temp_size, aes(x = 4.5, y = 0.5, label = mu_ss), size=3) +
-    theme(legend.position = "bottom") +
-    labs(col="") +
-    guides(col = guide_legend(nrow = 1))
-}  
+#sp<-1
+#plot_surv <- list()
+#especies<-unique(sim_surv_lenght$species)
+#for (sp in especies) {
+#  
+#  temp_size<-sim_surv_lenght %>% filter(species == sp & survey==2) %>%
+#    group_by(year) %>%
+#    summarize(mu_ss=mean(inpN))
+#  
+#  plot_surv[[sp]] <- sim_surv_lenght %>% filter (species==sp & survey==2) %>%
+#    ggplot() +
+#    aes(x=lenbin, y = value) +
+#    geom_line(aes(col = isim)) +
+#    facet_wrap(~year, dir="v") +
+#    geom_text(data=temp_size, aes(x = 4.5, y = 0.5, label = mu_ss), size=3) +
+#    theme(legend.position = "bottom") +
+#    labs(col="") +
+#    guides(col = guide_legend(nrow = 1))
+#}  
 
-plot_surv$Atlantic_cod
-plot_surv$Atlantic_herring
-plot_surv$Atlantic_mackerel
-plot_surv$Spiny_dogfish
+#plot_surv$Atlantic_cod
+#plot_surv$Atlantic_herring
+#plot_surv$Atlantic_mackerel
+#plot_surv$Spiny_dogfish
 
 #### PLOT SIM LENGHT CATCH ####
 
@@ -443,8 +589,6 @@ for (sp in especies) {
 }  
 
 plot_catch$Atlantic_cod
-plot_catch$Atlantic_herring
-plot_catch$Atlantic_mackerel
 plot_catch$Spiny_dogfish
 
 sp<-1
@@ -467,10 +611,8 @@ for (sp in especies) {
     guides(col = guide_legend(nrow = 1))
 }  
 
-plot_catch$Atlantic_cod
 plot_catch$Atlantic_herring
 plot_catch$Atlantic_mackerel
-plot_catch$Spiny_dogfish
 
 
 #### PLOT SIM DIET COMP ####
@@ -515,7 +657,3 @@ for (sp in especies) {
     scale_fill_brewer(type = "qual", palette = 3)
   
 }
-
-
-
-
