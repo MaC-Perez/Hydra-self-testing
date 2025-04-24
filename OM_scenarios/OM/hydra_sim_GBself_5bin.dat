@@ -15,11 +15,7 @@
   2
 # init_int Nsurveys (e.g. NEFSC spring, NEFSC fall, NEAMAP, etc)
   1
-<<<<<<< HEAD:OM_scenarios/OM/hydra_sim_GBself_5bin.dat
-# init_number wtconv
-=======
-# init_number wtconv 0.001
->>>>>>> 9562ea3dd25026ad78fff0023c662d6777efb0e3:OM_scenarios/gf_001/hydra_sim_GBself_5bin.dat
+# init_number wtconv 
   1
 ## Time series data file
  hydra_sim_GBself_5bin-ts.dat
@@ -255,9 +251,9 @@
   1
 # init_int ssphase               //survey selectivity estimation phase
   -2
-#  init_int ssig_phase           //survey sigma (obs error) phase
+# init_int ssig_phase           //survey sigma (obs error) phase
   -1
-#  init_int csig_phase           //catch sigma (obs error) phase
+# init_int csig_phase           //catch sigma (obs error) phase
   -1
 #  init_int m1_phase            // M1 phase
   -8

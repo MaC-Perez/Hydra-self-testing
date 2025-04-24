@@ -441,6 +441,83 @@ print(fleet2_plot)
   #     width = 10, height = 8, units = "in", dpi = 300)
 
 # plot sim data 
+
+#######
+## PLOT FITTED DATA
+####
+hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
+source("R/read.report2.R")
+source("R/gettables.R")
+
+
+#READ FITS FROM SARAHS DATA SETS
+rep_files <- paste0("sims/OM/rep/hydra_sim", 1:1, ".rep")
+#repfile <- "inputs/initial_run/hydra_sim.rep"
+
+# Read all rep files into a named list
+rep_outputs <- lapply(rep_files, function(file) {
+  cat("Reading:", file, "\n")
+  reptoRlist2(file)
+})
+
+obs_surveyB <- hydraDataList$observedBiomass
+obs_catchB <- hydraDataList$observedCatch
+
+biorows <- dim(obs_surveyB)[1]
+catchrows <- dim(obs_catchB)[1]
+
+# Use your existing rep_outputs and gettables()
+all_catch_fits <- purrr::map_dfr(seq_along(rep_outputs), function(i) {
+  cat("Extracting from:", rep_files[i], "\n")
+  
+  # Use corresponding file name to extract text-based fits with gettables()
+  tablist <- gettables(rep_files[i], biorows, catchrows)
+  
+  catchdf <- tablist[[2]] %>%
+    mutate(
+      obs = catch + 1e-07,
+      pred = pred_catch + 1e-07,
+      log_obs = log(obs),
+      log_pred = log(pred),
+      log_lo = log_obs - 1.96 * cv,
+      log_hi = log_obs + 1.96 * cv,
+      species = hydraDataList$speciesList[species],
+      isim = i  # simulation index
+    )
+  
+  return(catchdf)
+})
+
+
+#### READ CATCH AND SURVEY OBSERVED BIOMASS ####
+obs_surveyB <- hydraDataList$observedBiomass
+obs_catchB <- hydraDataList$observedCatch
+
+biorows <- dim(obs_surveyB)[1]
+catchrows <- dim(obs_catchB)[1]
+
+#create a table with estimated and observed values
+indexfits <- gettables(repfile, biorows, catchrows)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 fleet2plot<-sim_obs_catch %>% filter(fishery==1)%>%
   ggplot() +
   aes(x = year, y = log(catch), col = isim) +

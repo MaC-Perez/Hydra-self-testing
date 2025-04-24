@@ -702,7 +702,7 @@
   112
 # init_matrix obs_dietprop(1,Ndietprop_obs,1,ncol) 
 # Survey  Year  Predator  Predator_size InpN  wt_prey_1 wt_prey_2 wt_prey_3 wt_prey_4 wt_prey_5 wt_prey_6 wt_prey_7 wt_prey_8 wt_prey_9 wt_prey_10 wt_prey_11 other 
- 1  12  1 2 25  0.026938482 0 0 0 0.973061518
+1 12  1 2 25  0.026938482 0 0 0 0.973061518
 1 12  1 3 25  0.571156592 0 0 0 0.428843408
 1 13  1 3 25  0 0.072377524 0 0 0.927622476
 1 13  1 4 25  0 0.969120303 0 0 0.030879697
