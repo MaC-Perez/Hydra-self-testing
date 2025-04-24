@@ -446,6 +446,78 @@ print(fleet2_plot)
 
 # plot sim data 
 
+##############
+### biomass
+##############
+
+#### PLOT SIM BIOMASS ####
+# Combine and label simulation data
+sim_surv_catch<-purrr::map_dfr(hydraDataList2,"observedBiomass",.id = "isim") %>%
+  mutate(species = hydraDataList$speciesList[species])
+
+#Summarize across simulations (mean and CI)
+sim_summary_surv <- sim_surv_catch %>%
+  filter(survey == 1) %>%
+  group_by(year, species) %>%
+  summarise(
+    mean_logbio = mean(log(biomass), na.rm = TRUE),
+    lower_logbio = quantile(log(biomass), 0.025, na.rm = TRUE),
+    upper_logbio = quantile(log(biomass), 0.975, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(source = "Simulated Mean")
+
+# Get the observed catch
+obs_survey <- hydraDataList$observedBiomass %>%
+  filter(survey == 1) %>%
+  mutate(
+    species = hydraDataList$speciesList[species],
+    year = year,
+    mean_logbio = log(biomass),
+    source = "Observed"
+  ) %>%
+  select(year, species, mean_logbio, source)
+
+# Combine summary + observed into one
+plot_data_survey <- bind_rows(
+  sim_summary_surv %>% select(year, species, mean_logbio, source),
+  obs_survey
+)
+
+# plot sim data 
+surveyplot <- ggplot() +
+  # CI ribbon (for simulated only)
+  geom_ribbon(data = sim_summary_surv,
+              aes(x = year, ymin = lower_logbio, ymax = upper_logbio),
+              fill = "lightblue", alpha = 0.3) +
+  # Lines for mean and observed
+  geom_line(data = plot_data_survey,
+            aes(x = year, y = mean_logbio, color = source, linetype = source),
+            linewidth = 1) +
+  # NEW: Observed points
+  geom_point(data = plot_data_survey %>% filter(source == "Observed"),
+             aes(x = year, y = mean_logbio),
+             color = "black", shape = 16, size = 1.8) +
+  facet_wrap(~species, scales = "free", dir = "v") +
+  labs(x = "Year",
+       y = "Biomass (log t)",
+       title = "Survey 1: Simulated biomass (mean, CI) vs. Observed",
+       color = "Data Source",
+       linetype = "Data Source") +
+  scale_color_manual(values = c("Simulated Mean" = "blue", "Observed" = "black")) +
+  scale_linetype_manual(values = c("Simulated Mean" = "solid", "Observed" = "dashed")) +
+  theme_minimal()
+
+print(surveyplot)
+
+
+#ggsave("survey_simbio_plot.jpeg",
+#      plot = surveyplot,
+#     width = 10, height = 8, units = "in", dpi = 300)
+
+
+
+
 #######
 ## PLOT FITTED DATA
 ####
