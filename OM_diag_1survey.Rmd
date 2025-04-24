@@ -29,8 +29,9 @@ library(compResidual)
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 
 #READ FITS FROM SARAHS DATA SETS
-repfile <- "OM_scenarios/mod_test_11/hydra_sim.rep"
-#repfile <- "inputs/initial_run/hydra_sim.rep"
+#repfile <- "OM_scenarios/OM/hydra_sim.rep"
+repfile <- "OM_scenarios/OM/hydra_sim.rep"
+
 
 output<-reptoRlist(repfile)
 
@@ -261,8 +262,8 @@ est_M2 %>%
   geom_line() +
   facet_wrap(~species, scales = "free") +
   theme_minimal() +
-  scale_y_continuous(breaks = seq(min(est_M2$value, na.rm = TRUE), max(est_M2$value, na.rm = TRUE), by = 0.05),
-                     labels = scales::number_format(accuracy = 0.01)) +
+#  scale_y_continuous(breaks = seq(min(est_M2$value, na.rm = TRUE), max(est_M2$value, na.rm = TRUE), by = 0.05),
+#                     labels = scales::number_format(accuracy = 0.01)) +
   labs(x = "Year",
        y = "M2",
        col = "length bin",
@@ -303,47 +304,6 @@ est_M %>%
   #    guides(col = guide_legend(nrow = 1))
   NULL
 ```
-
-#### M total mortality
-
-```{r, echo=F}
-
-
-nlen <- ncol(output$EstM2size)
-
-est_abundance <- (output$EstNsize) %>% 
-     as_tibble() %>%  
-     pivot_longer(cols = everything(), names_to = "ilen", names_prefix = "V") %>% 
-     mutate(species = rep(hydraDataList$speciesList, each = hydraDataList$Nyrs * nlen * stepperyr),
-            year = rep(rep(1:(hydraDataList$Nyrs * stepperyr), each = nlen), length(hydraDataList$speciesList)),
-            year = (1 - 1 / stepperyr) + year / stepperyr) %>%
-     rename(abundance = value)  # Rename value to abundance for clarity
- 
-M_abund <- est_M %>%
-     left_join(est_abundance, by = c("year", "species", "ilen")) %>%
-     rename(M = value)  # Rename columns after join
-
-
-M_tot <- M_abund %>%
-  group_by(year, species) %>%
-  summarise(total_M = sum(M * abundance, na.rm = TRUE) / sum(abundance, na.rm = TRUE), .groups = "drop") %>%
-
-  I()
-```
-
-```{r, echo=F}
-M_tot %>% 
-  ggplot() +
-  aes(x = year, y = total_M, col = species) +  # Se usa species para color en vez de bin
-  geom_line() +
-  facet_wrap(~species, scales = "free") +
-  theme_minimal() +
-  labs(x = "Year",
-       y = "M",
-       col = "Species",
-       title = "Time series of total natural mortality")
-```
-
 
 #### Survey selectivity
 
