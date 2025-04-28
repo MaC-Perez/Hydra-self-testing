@@ -25,15 +25,14 @@ gettables <- function(repfile, biorows, catchrows){
 
   tablelist <- split(reptext, cumsum(grepl(pattern = 'table of fits to', reptext)))
 
-  survlist <- as.list(tablelist$`1`[1:biorows])
-
-
+  survlist <- as.list(tablelist$`1`[1:(biorows + 2)]) # read biorows + 2 lines
+  
   sv <- lapply(survlist[-c(1:2)], function(x) read.table(textConnection(x), header = FALSE))
   survdf <- do.call(rbind, sv)
   names(survdf) <- c("survey","year", "species", "biomass", "cv",
                      "pred_bio", "residual", "nll")
 
-  catchlist <- as.list(tablelist$`2`[1:catchrows])
+  catchlist <- as.list(tablelist$`2`[1:(catchrows + 2)])
 
   ct <- lapply(catchlist[-c(1:2)], function(x) read.table(textConnection(x), header = FALSE))
   catchdf <- do.call(rbind, ct)

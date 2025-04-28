@@ -18,23 +18,16 @@ hydraDataList$observedSurvSize<-hydraDataList[["observedSurvSize"]]%>%
   filter(survey==1)
 hydraDataList$observedSurvDiet<-hydraDataList[["observedSurvDiet"]]%>%  
   filter(species %in% c(1, 4))
-#hydraDataList$observedSurvDiet<-hydraDataList[["observedSurvDiet"]]%>%  
-#  filter(survey==1)
-#hydraDataList$observedSurvDiet<-surv_dietcomps
 hydraDataList$Nsurveys<-(Nsurveys=1)
 hydraDataList$Nsurvey_obs<-(Nsurvey_obs=166)
 hydraDataList$Nsurvey_size_obs<-(Nsurvey_size_obs=166)
-hydraDataList[["observedSurvDiet"]][["inpN"]]<-(inpN=25)
-#hydraDataList2[[1]][["observedCatch"]][["cv"]]
-hydraDataList[["observedBiomass"]][["cv"]]<-(cv=0.2)
 hydraDataList$Ndietprop_obs<-(Ndietprop_obs=112)
+hydraDataList[["observedSurvDiet"]][["inpN"]]<-(inpN=25)
+hydraDataList[["observedBiomass"]][["cv"]]<-(cv=0.2)
+hydraDataList[["observedCatchSize"]][["inpN"]]<-(inpN=25)
+hydraDataList[["observedSurvSize"]][["inpN"]]<-(inpN=25)
 
-
-
-#rep file model (check latest version) 
-#repfile <- "inputs/initial_run/hydra_sim.rep"
 repfile <- "OM_scenarios/OM/hydra_sim.rep"
-
 output<-reptoRlist(repfile)
 
 #repfile<-read.table("inputs/initial_run/pmse_predvals.out", header = FALSE, skip=2, nrow=336)
@@ -60,9 +53,6 @@ biomass<-indexfits[[1]] %>%
 # select catch
 catch<-indexfits[[2]]%>%
   mutate(species = hydraDataList$speciesList[species])
-
-
-
 
 # create simulation object
 set.seed(23)
@@ -306,8 +296,8 @@ for (nsim in 1:100)
   system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
   file.copy(from = "hydra_sim.rep", to = paste0("rep/hydra_sim",nsim,".rep"))
   file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
-  file.copy(from = "hydra_sim.cor", to = paste0("cor/hydra_sim",nsim,".cor"))
-  file.copy(from = "hydra_sim.std", to = paste0("std/hydra_sim",nsim,".std"))
+  file.copy(from = "HYDRA_~1.cor", to = paste0("cor/hydra_sim",nsim,".cor"))
+  file.copy(from = "HYDRA_~1.std", to = paste0("std/hydra_sim",nsim,".std"))
   file.copy(from = "pmse_predvals.out", to = paste0("out/pmse_predvals",nsim,".out"))
 }
 
