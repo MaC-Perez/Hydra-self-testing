@@ -3,10 +3,10 @@ source("R/gettables.R")
 library(tidyverse)
 library(readxl)
 library(hydradata)
-source("R/read.report2.R")  # make sure read.report2.R and gettables.R are sourced
+source("R/read.report.R")  # make sure read.report2.R and gettables.R are sourced
 source("R/gettables.R")
 
-# rm(list = ls())
+#rm(list = ls())
 
 # 1. Load your operating model inputs and outputs
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
@@ -26,7 +26,7 @@ hydraDataList[["observedCatchSize"]][["inpN"]]<-(inpN=25)
 hydraDataList[["observedSurvSize"]][["inpN"]]<-(inpN=25)
 
 repfile <- "OM_scenarios/OM/hydra_sim.rep"
-output <- reptoRlist2(repfile)
+output <- reptoRlist(repfile)
 
 obs_surveyB <- hydraDataList$observedBiomass %>% 
   filter(survey==1)
@@ -178,17 +178,17 @@ DET_catch <- DET_indexfits[[2]]
 #Compare Catch Fits
 catch_comp <- OM_catch %>%
   mutate(
-    true_catch = exp(log(catch + 1e-7)),
-    est_catch = exp(log(DET_catch$pred_catch + 1e-7)),
-    residual = log(est_catch) - log(true_catch)
+    OM_catch = pred_catch,
+    est_catch = DET_catch$pred_catch,
+    residual = est_catch - OM_catch
   )
 
 # Compare Survey Fits
 survey_comp <- OM_survey %>%
   mutate(
-    true_biomass = exp(log(biomass + 1e-7)),
-    est_biomass = exp(log(DET_survey$pred_bio + 1e-7)),
-    residual = log(est_biomass) - log(true_biomass)
+    OM_biomass = pred_bio,
+    est_biomass = DET_survey$pred_bio,
+    residual = est_biomass - OM_biomass
   )
 
 species_names <- hydraDataList$speciesList
@@ -201,16 +201,16 @@ survey_comp <- survey_comp %>%
 
 catch_plot <- catch_comp %>%
   ggplot(aes(x = year)) +
-  geom_line(aes(y = log(true_catch), color = "True Catch"), linetype = "dashed", size = 1) +
-  geom_line(aes(y = log(est_catch), color = "Estimated Catch"), size = 1) +
+  geom_line(aes(y = log(OM_catch), color = "OM Catch"), linetype = "dashed", size = 1) +
+  geom_line(aes(y = log(est_catch), color = "EM Catch"), size = 1) +
   facet_wrap(~Species, scales = "free_y", ncol = 2) +
   labs(
-    title = "Time Series of True vs Estimated Catch (Deterministic Data)",
+    title = "Time Series of OM vs EM estimated catch (Deterministic data)",
     x = "Year",
     y = "log(Catch)",
     color = NULL
   ) +
-  scale_color_manual(values = c("True Catch" = "black", "Estimated Catch" = "blue")) +
+  scale_color_manual(values = c("OM Catch" = "black", "EM Catch" = "blue")) +
   theme_minimal() +
   theme(
     strip.text = element_text(size = 12, face = "bold"),
@@ -227,16 +227,16 @@ survey_comp <- survey_comp %>%
 
 survey_plot <- survey_comp %>%
   ggplot(aes(x = year)) +
-  geom_line(aes(y = log(true_biomass), color = "True Biomass"), linetype = "dashed", size = 1) +
-  geom_line(aes(y = log(est_biomass), color = "Estimated Biomass"), size = 1) +
+  geom_line(aes(y = log(OM_biomass), color = "OM Biomass"), linetype = "dashed", size = 1) +
+  geom_line(aes(y = log(est_biomass), color = "EM Biomass"), size = 1) +
   facet_wrap(~Species, scales = "free_y", ncol = 2) +
   labs(
-    title = "Time Series of True vs Estimated Survey Biomass (Deterministic Data)",
+    title = "Time Series of OM vs EM estiated survey biomass (Deterministic data)",
     x = "Year",
     y = "log(Biomass)",
     color = NULL  # Leyenda sin título
   ) +
-  scale_color_manual(values = c("True Biomass" = "black", "Estimated Biomass" = "green4")) +
+  scale_color_manual(values = c("OM Biomass" = "black", "EM Biomass" = "green4")) +
   theme_minimal() +
   theme(
     strip.text = element_text(size = 12, face = "bold"),  # Nombres de especies bonitos
