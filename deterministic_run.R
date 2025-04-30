@@ -50,7 +50,7 @@ set.seed(23)
 sim_data <- NULL
 isim <- 1
 
-for (isim in 1:100) {  
+for (isim in 1:1) {  
   
   # replace index with simulated data
   
@@ -140,7 +140,7 @@ source("R/read.report.R")
 hydraDataList2 <- readRDS("deterministic_sim_data.rds")
 
 listOfParameters<-list()
-listOfParameters$outDir<-paste0(getwd(),"/","sims","/")
+listOfParameters$outDir<-paste0(getwd(),"/","sims","/","deterministic","/")
 listOfParameters$outputFilename<-"hydra_sim_deterministic"
 listOfParameters$fillLength <- 2000
 
@@ -176,7 +176,6 @@ DET_survey <- DET_indexfits[[1]]
 DET_catch <- DET_indexfits[[2]]
 
 #Compare Catch Fits
-
 catch_comp <- OM_catch %>%
   mutate(
     true_catch = exp(log(catch + 1e-7)),
@@ -185,13 +184,76 @@ catch_comp <- OM_catch %>%
   )
 
 # Compare Survey Fits
-
 survey_comp <- OM_survey %>%
   mutate(
     true_biomass = exp(log(biomass + 1e-7)),
     est_biomass = exp(log(DET_survey$pred_bio + 1e-7)),
     residual = log(est_biomass) - log(true_biomass)
   )
+
+species_names <- hydraDataList$speciesList
+catch_comp <- catch_comp %>%
+  mutate(Species = species_names[species])  # ¡asignas el nombre usando el índice!
+
+survey_comp <- survey_comp %>%
+  mutate(Species = species_names[species])
+
+
+catch_plot <- catch_comp %>%
+  ggplot(aes(x = year)) +
+  geom_line(aes(y = log(true_catch), color = "True Catch"), linetype = "dashed", size = 1) +
+  geom_line(aes(y = log(est_catch), color = "Estimated Catch"), size = 1) +
+  facet_wrap(~Species, scales = "free_y", ncol = 2) +
+  labs(
+    title = "Time Series of True vs Estimated Catch (Deterministic Data)",
+    x = "Year",
+    y = "log(Catch)",
+    color = NULL
+  ) +
+  scale_color_manual(values = c("True Catch" = "black", "Estimated Catch" = "blue")) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 9)
+  )
+
+species_names <- hydraDataList$speciesList
+
+survey_comp <- survey_comp %>%
+  mutate(Species = species_names[species])
+
+
+survey_plot <- survey_comp %>%
+  ggplot(aes(x = year)) +
+  geom_line(aes(y = log(true_biomass), color = "True Biomass"), linetype = "dashed", size = 1) +
+  geom_line(aes(y = log(est_biomass), color = "Estimated Biomass"), size = 1) +
+  facet_wrap(~Species, scales = "free_y", ncol = 2) +
+  labs(
+    title = "Time Series of True vs Estimated Survey Biomass (Deterministic Data)",
+    x = "Year",
+    y = "log(Biomass)",
+    color = NULL  # Leyenda sin título
+  ) +
+  scale_color_manual(values = c("True Biomass" = "black", "Estimated Biomass" = "green4")) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 12, face = "bold"),  # Nombres de especies bonitos
+    legend.position = "bottom",                           # Leyenda abajo
+    legend.title = element_blank(),
+    legend.text = element_text(size = 9)
+  )
+# --- Save Catch Plot ---
+ggsave(filename = "Deterministic_Catch.jpeg",
+       plot = catch_plot,
+       width = 10, height = 8, units = "in", dpi = 300)
+
+# --- Save Survey Biomass Plot ---
+ggsave(filename = "Deterministic_Biomass.jpeg",
+       plot = survey_plot,
+       width = 10, height = 8, units = "in", dpi = 300)
+
 
 # Quick Metrics
 
@@ -243,3 +305,37 @@ survey_comp %>%
   labs(title = "Survey Biomass Residuals Over Time", x = "Year", y = "Residual (log scale)") +
   theme_minimal()
 
+
+# --- Read Objective Function Value from .par file ---
+parfile_det <- "sims/deterministic/hydra_sim.par"  # Adjust path if needed
+
+# Read the first line only
+first_line <- readLines(parfile_det, n = 1)
+
+# Extract the Objective Function Value
+objective_value <- as.numeric(sub(".*Objective function value = ([0-9\\.eE\\+-]+).*", "\\1", first_line))
+
+# Extract the Maximum Gradient Component
+max_gradient <- as.numeric(sub(".*Maximum gradient component = ([0-9\\.eE\\+-]+).*", "\\1", first_line))
+
+# --- Print results ---
+cat("Final Objective Function Value:", objective_value, "\n")
+cat("Final Maximum Gradient Component:", max_gradient, "\n\n")
+
+# --- Set thresholds ---
+objective_threshold <- 1e-2  # Objective function should be very close to zero
+gradient_threshold <- 1e-4   # Gradient should be very small for good convergence
+
+# --- Check Objective Function ---
+if (objective_value < objective_threshold) {
+  cat("PASS: Objective function value is very close to zero. Good fit.\n")
+} else {
+  cat("WARNING: Objective function value is higher than expected. Check your fit.\n")
+}
+
+# --- Check Maximum Gradient ---
+if (max_gradient < gradient_threshold) {
+  cat("PASS: Maximum gradient is small. Optimization properly converged.\n")
+} else {
+  cat("WARNING: Maximum gradient is too large! Possible convergence problems.\n")
+}
