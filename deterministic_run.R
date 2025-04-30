@@ -339,3 +339,4 @@ if (max_gradient < gradient_threshold) {
 } else {
   cat("WARNING: Maximum gradient is too large! Possible convergence problems.\n")
 }
+
