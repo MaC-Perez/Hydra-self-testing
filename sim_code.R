@@ -136,7 +136,7 @@ for (isim in 1:100) {
 # remove  %>% filter(survey==1) if you have 2 surveys
  
   obs_survey <- hydraDataList$observedSurvSize  %>% filter(survey == 1)  %>% tibble()
-  obs_survey <- obs_survey %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
+  obs_survey <- obs_survey %>% pivot_longer(zxcols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
     
     mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
            label = rep("survey",nrow(.)))
@@ -511,7 +511,7 @@ print(surveyplot)
 #######
 ## PLOT FITTED DATA
 ####
-source("R/read.report2.R")
+source("R/read.report.R")
 source("R/gettables.R")
 
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
@@ -717,10 +717,14 @@ plot_data_catch %>%
     Bias = mean(mean_log_est - mean_log_true, na.rm = TRUE)
   )
 
-ggplot(plot_data_catch, aes(x = mean_log_est - mean_log_true)) +
+residual_catch<-ggplot(plot_data_catch, aes(x = mean_log_est - mean_log_true)) +
   geom_histogram(bins = 30, fill = "blue", alpha = 0.6) +
   facet_wrap(~species) +
   labs(title = "Residual Distribution: Estimated - OM", x = "Residual", y = "Frequency")
+
+print(residual_catch)
+
+#ggsave("residual_catch.jpeg", plot = residual_catch, width = 10, height = 8, units = "in", dpi = 300)
 
 # Coverage rate: The % of times the OM value was within the model’s 95% confidence interval (CI). Ideally near 95% if your intervals are well calibrated.
 

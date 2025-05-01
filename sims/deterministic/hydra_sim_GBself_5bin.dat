@@ -26,10 +26,10 @@
 # Atlantic_mackerel
 # Spiny_dogfish
 # init_matrix binwidth(1,Nspecies,1,Nsizebins)
- 	29	29	29	29	29
- 	8	8	8	8	8
- 	12	12	12	12	12
- 	30	30	30	30	30
+  29  29  29  29  29
+  8 8 8 8 8
+  12  12  12  12  12
+  30  30  30  30  30
 # init_vector lenwt_a(1,Nspecies)
   0.00685681567472357 0.00696289397647208 0.00310242979734439 0.00218691346582327
 # init_vector lenwt_b(1,Nspecies)
@@ -318,7 +318,7 @@
   0 0 0 0
 #  init_matrix sexratio(1,Nareas,1,Nspecies)  // this is proportion females
   0.5 0.5 0.5 0.5
- #  init_matrix recruitment_covwt(1,Nspecies,1,Nrecruitment_cov)	//recruitment covariate weighting factor
+ #  init_matrix recruitment_covwt(1,Nspecies,1,Nrecruitment_cov)  //recruitment covariate weighting factor
   0
   0
   0

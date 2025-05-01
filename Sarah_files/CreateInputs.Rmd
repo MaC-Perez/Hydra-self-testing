@@ -1,0 +1,34 @@
+---
+ title: "Create input files"
+ author: "Sarah Gaichas"
+ date: "2022-10-31"
+ output: html_document
+ ---
+ 
+ ## Build the data
+ 
+ Use `hydradata` package to create the .dat and .pin files. We are working from the forked `hydradata` repository at https://github.com/thefaylab/hydradata for this project. 
+ 
+ Now we are building inputs directly from the [`mskeyrun` data package](https://noaa-edab.github.io/ms-keyrun/) with a new function has been incorporated into the `hydradata` package [`hydradata::create_RData_selftest(dattype = c("sim", "real"), nlenbin = 5)`](https://github.com/thefaylab/hydradata/blob/master/data-raw/create_RData_selftest.R).
+ 
+ The new function allows us to specify whether we are building with simulated or real data, and the number of length bins to use in the input files. Default is 5 length bins but we can change this to generate different .dat and .pin files.
+ 
+ The `create_RData_selftest.R` file was sourced, and `create_RData_selftest("sim", nlenbin = 5)` was run to make a new `hydraDataList_st.rda` file in the package. Then the package is built locally, R is restarted, and the following code block is run to produce input files.
+ 
+ We probably want to streamline the building process and keep separate hydradatalist R objects that have the different bin definitions.
+ 
+ ```{r, writedatfile5, eval=FALSE}
+ 
+ library(here)
+ library(hydradata)
+ inputs <- setup_default_inputs()
+ inputs$outDir <- here("inputs")
+ 
+ inputs$outputFilename <- "hydra_sim_GBself_5bin" 
+ 
+ hydraDataList_GBself_5bin <- create_datpin_files(inputs,hydraDataList_st)
+ # this saves the specific hydralist object, so we could saveRDS it to a diagnostics folder?
+ # advantage of rds format is we can assign it when reading it in to diagnostics scripts
+ saveRDS(hydraDataList_GBself_5bin, file.path(here("inputs/hydra_sim_GBself_5bin.rds")))
+ 
+ ```
