@@ -3540,7 +3540,17 @@ REPORT_SECTION
      report << i << " " << j << " " << Fyr(1,i,j) << endl;
   }}
 
+  report << "Year Species SSB" << endl;
 
+  for (int yrct = 1; yrct <= Nyrs; yrct++) {
+  for (int spp = 1; spp <= Nspecies; spp++) {
+    dvariable total_ssb = 0.0;
+    for (int area = 1; area <= Nareas; area++) {
+      total_ssb += SSB(area, spp)(yrct);
+    }
+    report << yrct << " " << spp << " " << total_ssb << endl;
+  }
+  }
 //// write full time series of predicted data streams to pmse_prevals.out
 
 //////// full table of predicted survey index
