@@ -301,6 +301,513 @@ for (nsim in 1:100)
   file.copy(from = "pmse_predvals.out", to = paste0("out/pmse_predvals",nsim,".out"))
 }
 
+
+
+#######
+## PLOT FITTED DATA
+####
+source("R/read.report.R")
+source("R/gettables.R")
+library(tidyverse)
+
+hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
+obs_surveyB <- hydraDataList$observedBiomass %>% 
+  filter(survey == 1)
+
+obs_catchB <- hydraDataList$observedCatch
+
+biorows <- dim(obs_surveyB)[1]
+catchrows <- dim(obs_catchB)[1]
+
+#READ FITS FROM OM
+OMrepfile <- "OM_scenarios/OM/hydra_sim.rep"
+OMoutput<-reptoRlist(OMrepfile)
+
+#pred_catch and pred_bio are my estimated values from the OM 
+indexfits <- gettables(OMrepfile, biorows, catchrows)
+OM_catch <- indexfits[[2]]
+OM_survey <- indexfits[[1]]
+
+#READ FITS FROM RUNS WITH 100 DATA SETS
+rep_files_sim <- paste0("sims/OM/rep/hydra_sim", 1:100, ".rep")
+#repfile <- "inputs/initial_run/hydra_sim.rep"
+
+# Read all rep files into a named list
+rep_simoutputs <- lapply(rep_files_sim, function(file) {
+  cat("Reading:", file, "\n")
+  reptoRlist(file)
+})
+
+
+#############
+### CATCH
+#############
+
+# Estimated OM catch vs estimate EM 100 fits (from rep files)
+
+#Extract EM catch for all runs
+all_catch_fits <- purrr::map_dfr(seq_along(rep_simoutputs), function(i) {
+  cat("Extracting from:", rep_files_sim[i], "\n")
+  
+  # Use gettables() on each .rep file path
+  tablist <- gettables(rep_files_sim[i], biorows, catchrows)
+  
+  catchdf <- tablist[[2]] %>%
+    mutate(
+      obs = catch + 1e-07,
+      pred_EM = pred_catch + 1e-07,
+      log_obs = log(obs),
+      log_pred_EM = log(pred_EM),
+      log_lo = log_obs - 1.96 * cv,
+      log_hi = log_obs + 1.96 * cv,
+      species = hydraDataList$speciesList[species],
+      isim = i  # simulation index
+    )
+  
+  return(catchdf)
+})
+
+# extract OM catch estimates
+OM_catch_plot <- OM_catch %>%
+       mutate(
+             obs = catch + 1e-07,
+             pred_OM = pred_catch + 1e-07,
+             log_pred_OM = log(pred_OM),
+             species = hydraDataList$speciesList[species],
+             isim = 0  # identifier for OM
+         )
+
+OM_EMest_catch<-ggplot() +
+       # EM simulation lines
+       geom_line(data = all_catch_fits,
+                                 aes(x = year, y = log_pred_EM, group = isim, color = "EM estimates"),
+                                 alpha = 0.3, linewidth = 0.5) +
+       # OM line
+       geom_line(data = OM_catch_plot,
+                                 aes(x = year, y = log_pred_OM, color = "OM estimate"),
+                                 linewidth = 1.2) +
+       facet_wrap(~species, scales = "free_y") +
+       labs(x = "Year", y = "Log(Catch)", color = "Model") +
+       theme_minimal()
+
+print(OM_EMest_catch)
+
+#ggsave("OM_EMest_catch.jpeg",
+ #            plot = OM_EMest_catch,
+  #          width = 10, height = 8, units = "in", dpi = 300)
+
+
+#############
+### SURVEY
+#############
+
+# Estimated OM survey vs estimate EM 100 fits (from rep files)
+
+#Extract EM survey biomass for all runs
+all_survey_fits <- purrr::map_dfr(seq_along(rep_simoutputs), function(i) {
+  cat("Extracting survey biomass from:", rep_files_sim[i], "\n")
+  
+  tablist <- gettables(rep_files_sim[i], biorows, catchrows)
+  
+  survey_df <- tablist[[1]] %>%
+    mutate(
+      pred_EM = pred_bio + 1e-07,
+      log_pred_EM = log(pred_EM),
+      species = hydraDataList$speciesList[species],
+      isim = i
+    )
+  
+  return(survey_df)
+})
+
+## extract OM survey biomass estimates
+OM_survey_plot <- OM_survey %>%
+  mutate(
+    pred_OM = pred_bio + 1e-07,
+    log_pred_OM = log(pred_OM),
+    species = hydraDataList$speciesList[species],
+    isim = 0  # identifier for OM
+  )
+
+OM_EMest_survey<-ggplot() +
+  # EM simulation lines
+  geom_line(data = all_survey_fits,
+            aes(x = year, y = log_pred_EM, group = isim, color = "EM estimates"),
+            alpha = 0.3, linewidth = 0.5) +
+  # OM line
+  geom_line(data = OM_survey_plot,
+            aes(x = year, y = log_pred_OM, color = "OM estimate"),
+            linewidth = 1.2) +
+  facet_wrap(~species, scales = "free_y") +
+  labs(x = "Year", y = "Log(Survey Biomass)", color = "Model") +
+  theme_minimal()
+
+print(OM_EMest_survey)
+
+#ggsave("OM_EMest_survey.jpeg",
+ #                  plot = OM_EMest_survey,
+  #               width = 10, height = 8, units = "in", dpi = 300)
+       
+       
+#boxplot catch prediction
+# median of the 100 preds and the 25 and 75 percentiles (IQR), whiskers +- 1.5x IQR (IQR being 50%) and outliers shown as indivisul points
+# If for a species in a given year:
+#Q1 = 7.0
+#Q3 = 7.8
+#IQR = 0.8
+#Then:
+#Whiskers would extend up to:
+#Lower: Q1 − 1.5 × 0.8 = 5.8
+#Upper: Q3 + 1.5 × 0.8 = 9.0
+#Any points outside [5.8, 9.0] would appear as outliers.
+
+catch_boxplot<- ggplot(all_catch_fits, aes(x = factor(year), y = log_pred_EM)) +
+  geom_boxplot(fill = "lightblue", outlier.size = 0.5, outlier.alpha = 0.3) +
+  facet_wrap(~species, scales = "free_y") +
+  labs(x = "Year", y = "Log(Catch)", title = "Catch Predictions: EM Boxplots by Year") +
+  theme_minimal()
+
+print(catch_boxplot)
+
+#ggsave("catch_boxplot.jpeg",
+#                  plot = catch_boxplot,
+#               width = 10, height = 8, units = "in", dpi = 300)
+
+#boxplot survey prediction
+survey_boxplot<-ggplot(all_survey_fits, aes(x = factor(year), y = log_pred_EM)) +
+  geom_boxplot(fill = "lightgreen", outlier.size = 0.5, outlier.alpha = 0.3) +
+  facet_wrap(~species, scales = "free_y") +
+  labs(x = "Year", y = "Log(Survey Biomass)", title = "Survey Biomass: EM Boxplots by Year") +
+  theme_minimal()
+
+print(survey_boxplot)
+
+#ggsave("survey_boxplot.jpeg",
+#       plot = survey_boxplot,
+#       width = 10, height = 8, units = "in", dpi = 300)
+
+
+# estimated catch from 100 EM vs. observed true catch from the operating model (OM)
+
+est_summary_catch <- all_catch_fits %>%
+  group_by(year, species, fishery) %>%
+  summarise(
+    mean_log_est = mean(log_pred_EM, na.rm = TRUE),
+    lo = quantile(log_pred_EM, 0.025, na.rm = TRUE),
+    hi = quantile(log_pred_EM, 0.975, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+true_summary_catch <- OM_catch %>%
+  mutate(
+    log_true = log(catch + 1e-07),
+    species = hydraDataList$speciesList[species]  # optional: convert to names
+  ) %>%
+  group_by(year, species, fishery) %>%
+  summarise(mean_log_true = mean(log_true, na.rm = TRUE), .groups = "drop")
+
+
+plot_data_catch <- left_join(est_summary_catch, true_summary_catch,
+                             by = c("year", "species", "fishery"))
+
+fleet3_plot <-ggplot(plot_data_catch, aes(x = year)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), fill = "blue", alpha = 0.3) +
+  geom_line(aes(y = mean_log_est), color = "blue", size = 1) +
+  geom_line(aes(y = mean_log_true), color = "black", linetype = "dashed", size = 1) +
+  facet_wrap(~species, scales = "free_y") + 
+  labs(
+    title = "Mean Estimated Catch vs. Operating Model Catch",
+    x = "Year",
+    y = "log(Catch)",
+    caption = "Blue: Estimated mean ± 95% CI | Black dashed: OM catch"
+  ) +
+  theme_minimal()
+
+print(fleet3_plot)
+
+#ggsave("fleet3_fitcatch_plot.jpeg",
+#      plot = fleet3_plot,
+#     width = 10, height = 8, units = "in", dpi = 300)
+
+
+
+#############
+### SURVEY BIOMASS
+#############
+# estimated catch from 100 EM vs. observed true catch from the operating model (OM)
+
+# Estimated survey biomass summary (from 100 rep files)
+est_summary_survey <- all_survey_fits %>%
+  group_by(year, species, survey) %>%
+  summarise(
+    mean_log_est = mean(log_pred_EM, na.rm = TRUE),
+    lo = quantile(log_pred_EM, 0.025, na.rm = TRUE),
+    hi = quantile(log_pred_EM, 0.975, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# "True" survey biomass from OM .rep file
+
+true_summary_survey <- OM_survey %>%
+  mutate(
+    log_true = log(biomass + 1e-07),
+    species = hydraDataList$speciesList[species]
+  ) %>%
+  group_by(year, species, survey) %>%
+  summarise(
+    mean_log_true = mean(log_true, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Join estimated and true summaries
+plot_data_survey <- left_join(est_summary_survey, true_summary_survey,
+                              by = c("year", "species", "survey"))
+
+# Plot
+survey_plot <- ggplot(plot_data_survey, aes(x = year)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), fill = "green", alpha = 0.3) +
+  geom_line(aes(y = mean_log_est), color = "darkgreen", size = 1) +
+  geom_line(aes(y = mean_log_true), color = "black", linetype = "dashed", size = 1) +
+  facet_wrap(~species, scales = "free_y") +
+  labs(
+    title = "Mean Estimated Survey Biomass vs. Operating Model Survey Biomass",
+    x = "Year",
+    y = "log(Biomass)",
+    caption = "Green: Estimated mean ± 95% CI | Black dashed: OM survey biomass"
+  ) +
+  theme_minimal()
+
+print(survey_plot)
+
+#ggsave("survey_fit_plot.jpeg", plot = survey_plot, width = 10, height = 8, units = "in", dpi = 300)
+
+#################
+#### PERFORMANCE METRICS
+##################
+
+# Per species/fleet/year or just overall
+#RMSE Error between the model estimate and OM value. Shows the average size of errors — larger values mean greater deviation.
+
+OM_vs_EM <- all_catch_fits %>%
+  left_join(OM_catch_plot %>% 
+              select(year, species, fishery, pred_OM, log_pred_OM),  # only bring what you need
+            by = c("year", "species", "fishery")) %>%
+  mutate(
+    error = log_pred_EM - log_pred_OM,
+    abs_error = abs(error),
+    squared_error = error^2
+  )
+
+OM_vs_EM <- OM_vs_EM %>%
+  select(fishery, area, year, species, catch, cv, residual, nll, pred_EM, log_pred_EM, pred_OM, log_pred_OM, isim, error,  abs_error, squared_error)
+
+#Summary by simulation
+error_summary <- OM_vs_EM %>%
+  group_by(isim) %>%
+  summarise(
+    RMSE = sqrt(mean(squared_error, na.rm = TRUE)),
+    MAE  = mean(abs_error, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(error_summary, aes(x = RMSE)) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Distribution of RMSE across EM simulations")
+
+
+# RMSE over time by species
+error_by_year_species <- OM_vs_EM %>%
+  group_by(year, species) %>%
+  summarise(
+    RMSE = sqrt(mean(squared_error, na.rm = TRUE)),
+    MAE = mean(abs_error, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Plot RMSE over time
+ggplot(error_by_year_species, aes(x = year, y = RMSE)) +
+  geom_line(color = "darkred") +
+  facet_wrap(~species, scales = "free_y") +
+  labs(title = "RMSE Over Time by Species", y = "RMSE", x = "Year") +
+  theme_minimal()
+
+#RMSE per species across simulations
+error_by_sim_species <- OM_vs_EM %>%
+  group_by(isim, species) %>%
+  summarise(
+    RMSE = sqrt(mean(squared_error, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+ggplot(error_by_sim_species, aes(x = species, y = RMSE)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(title = "RMSE per Species Across Simulations", x = "Species", y = "RMSE") +
+  theme_minimal()
+
+
+###################
+#### SURVEY
+###################
+
+
+OM_vs_EM_survey <- all_survey_fits %>%
+    left_join(OM_survey_plot %>%
+              select(year, species, survey, pred_OM, log_pred_OM),
+            by = c("year", "species", "survey")) %>%
+  mutate(
+    error = log_pred_EM - log_pred_OM,
+    abs_error = abs(error),
+    squared_error = error^2
+  )
+
+OM_vs_EM_survey <- OM_vs_EM_survey %>%
+  select(survey, year, species, biomass, cv, pred_bio, pred_EM, log_pred_EM, pred_OM, log_pred_OM, isim, error, abs_error, squared_error)
+
+#Summary by simulation
+error_summary_survey <- OM_vs_EM_survey %>%
+  group_by(isim) %>%
+  summarise(
+    RMSE = sqrt(mean(squared_error, na.rm = TRUE)),
+    MAE = mean(abs_error, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(error_summary_survey, aes(x = RMSE)) +
+  geom_histogram(bins = 30, fill = "darkgreen", alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Distribution of RMSE for Survey Biomass (EM)", x = "RMSE")
+
+#RMSE over time by species
+error_by_year_species_survey <- OM_vs_EM_survey %>%
+  group_by(year, species) %>%
+  summarise(
+    RMSE = sqrt(mean(squared_error, na.rm = TRUE)),
+    MAE = mean(abs_error, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(error_by_year_species_survey, aes(x = year, y = RMSE)) +
+  geom_line(color = "darkgreen") +
+  facet_wrap(~species, scales = "free_y") +
+  labs(title = "RMSE Over Time by Species (Survey Biomass)", y = "RMSE", x = "Year") +
+  theme_minimal()
+
+#RMSE per species across simulations
+error_by_sim_species_survey <- OM_vs_EM_survey %>%
+  group_by(isim, species) %>%
+  summarise(
+    RMSE = sqrt(mean(squared_error, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+ggplot(error_by_sim_species_survey, aes(x = species, y = RMSE)) +
+  geom_boxplot(fill = "lightgreen") +
+  labs(title = "RMSE per Species Across Simulations (Survey Biomass)",
+       x = "Species", y = "RMSE") +
+  theme_minimal()
+
+
+
+
+# The mean difference between estimated and true values. Positive = overestimation; negative = underestimation.
+
+mean_diff_catch <- OM_vs_EM %>%
+  group_by(species) %>%
+  summarise(
+    mean_diff = mean(log_pred_EM - log_pred_OM, na.rm = TRUE),  # log-scale difference
+    .groups = "drop"
+  )
+
+print(mean_diff_catch)
+
+#Positive values = the EM tends to overestimate, Negative values = the EM tends to underestimate
+
+ggplot(mean_diff_catch, aes(x = species, y = mean_diff)) +
+  geom_col(fill = "steelblue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(
+    title = "Mean Log Difference (Estimated - True) for Catch",
+    x = "Species",
+    y = "Mean Log Difference"
+  ) +
+  theme_minimal()
+
+ggplot(OM_vs_EM, aes(x = error)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  facet_wrap(~species, scales = "free_y") +
+  labs(
+    title = "Residual Distribution: Estimated - OM",
+    x = "Residual",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+
+mean_diff_survey <- OM_vs_EM_survey %>%
+  group_by(species) %>%
+  summarise(
+    mean_diff = mean(log_pred_EM - log_pred_OM, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(mean_diff_survey)
+
+ggplot(mean_diff_survey, aes(x = species, y = mean_diff)) +
+  geom_col(fill = "darkgreen") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(
+    title = "Mean Log Difference (Estimated - True) for Survey Biomass",
+    x = "Species",
+    y = "Mean Log Difference"
+  ) +
+  theme_minimal()
+
+
+ggplot(OM_vs_EM_survey, aes(x = error)) +
+  geom_histogram(bins = 30, fill = "darkgreen", alpha = 0.7) +
+  facet_wrap(~species, scales = "free_y") +
+  labs(
+    title = "Residual Distribution (Survey): Estimated - OM",
+    x = "Residual",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### SIMULATED DATA PLOTS ####
 #browseVignettes("hydradata")
 
@@ -312,7 +819,7 @@ library(tidyverse)
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 hydraDataList2 <- readRDS("sim_data_1survey.rds")
 
-#### PLOT SIM CATCH ####
+#### PLOT SIMULATIONS CATCH ####
 # Combine and label simulation data
 sim_obs_catch<-purrr::map_dfr(hydraDataList2,"observedCatch",.id = "isim") %>%
    mutate(species = hydraDataList$speciesList[species])
@@ -440,7 +947,7 @@ print(fleet2_plot)
 ### biomass
 ##############
 
-#### PLOT SIM BIOMASS ####
+#### PLOT SIMULATIONS BIOMASS ####
 # Combine and label simulation data
 sim_surv_catch<-purrr::map_dfr(hydraDataList2,"observedBiomass",.id = "isim") %>%
   mutate(species = hydraDataList$speciesList[species])
@@ -504,235 +1011,6 @@ print(surveyplot)
 #ggsave("survey_simbio_plot.jpeg",
 #      plot = surveyplot,
 #     width = 10, height = 8, units = "in", dpi = 300)
-
-
-
-
-#######
-## PLOT FITTED DATA
-####
-source("R/read.report.R")
-source("R/gettables.R")
-
-hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
-obs_surveyB <- hydraDataList$observedBiomass %>% 
-  filter(survey == 1)
-
-obs_catchB <- hydraDataList$observedCatch
-
-biorows <- dim(obs_surveyB)[1]
-catchrows <- dim(obs_catchB)[1]
-
-#READ FITS FROM OM
-OMrepfile <- "OM_scenarios/OM/hydra_sim.rep"
-OMoutput<-reptoRlist(OMrepfile)
-
-indexfits <- gettables(OMrepfile, biorows, catchrows)
-OM_catch <- indexfits[[2]]
-OM_survey <- indexfits[[1]]
-
-#READ FITS FROM RUNS WITH 100 DATA SETS
-rep_files_sim <- paste0("sims/OM/rep/hydra_sim", 1:100, ".rep")
-#repfile <- "inputs/initial_run/hydra_sim.rep"
-
-# Read all rep files into a named list
-rep_simoutputs <- lapply(rep_files_sim, function(file) {
-  cat("Reading:", file, "\n")
-  reptoRlist2(file)
-})
-
-
-#############
-### CATCH
-#############
-
-all_catch_fits <- purrr::map_dfr(seq_along(rep_simoutputs), function(i) {
-  cat("Extracting from:", rep_files_sim[i], "\n")
-  
-  # Use gettables() on each .rep file path
-  tablist <- gettables(rep_files_sim[i], biorows, catchrows)
-  
-  catchdf <- tablist[[2]] %>%
-    mutate(
-      obs = catch + 1e-07,
-      pred = pred_catch + 1e-07,
-      log_obs = log(obs),
-      log_pred = log(pred),
-      log_lo = log_obs - 1.96 * cv,
-      log_hi = log_obs + 1.96 * cv,
-      species = hydraDataList$speciesList[species],
-      isim = i  # simulation index
-    )
-  
-  return(catchdf)
-})
-
-
-# Estimated catch summary (from rep files)
-est_summary_catch <- all_catch_fits %>%
-  group_by(year, species, fishery) %>%
-  summarise(
-    mean_log_est = mean(log_pred, na.rm = TRUE),
-    lo = quantile(log_pred, 0.025, na.rm = TRUE),
-    hi = quantile(log_pred, 0.975, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-true_summary_catch <- OM_catch %>%
-  mutate(
-    log_true = log(catch + 1e-07),
-    species = hydraDataList$speciesList[species]  # optional: convert to names
-  ) %>%
-  group_by(year, species, fishery) %>%
-  summarise(mean_log_true = mean(log_true, na.rm = TRUE), .groups = "drop")
-
-# True catch summary (from OM sims, sim_obs_catch)
-#true_summary <- obs_catchB %>%
-#  group_by(year, species, fishery) %>%
-#  summarise(
-#    mean_log_true = mean(log(catch + 1e-07), na.rm = TRUE),
-#    .groups = "drop"
-#  ) 
-
-#est_summary <- est_summary %>%
-#  mutate(species = match(species, hydraDataList$speciesList))
-
-plot_data_catch <- left_join(est_summary_catch, true_summary_catch,
-                       by = c("year", "species", "fishery"))
-
-#plot_data <- plot_data %>%
-#  mutate(species = hydraDataList$speciesList[species])
-
-
-fleet3_plot <-ggplot(plot_data_catch, aes(x = year)) +
-  geom_ribbon(aes(ymin = lo, ymax = hi), fill = "blue", alpha = 0.3) +
-  geom_line(aes(y = mean_log_est), color = "blue", size = 1) +
-  geom_line(aes(y = mean_log_true), color = "black", linetype = "dashed", size = 1) +
-  facet_wrap(~species, scales = "free_y") + 
-  labs(
-    title = "Mean Estimated Catch vs. Operating Model Catch",
-    x = "Year",
-    y = "log(Catch)",
-    caption = "Blue: Estimated mean ± 95% CI | Black dashed: OM catch"
-  ) +
-  theme_minimal()
-
-print(fleet3_plot)
-
-#ggsave("fleet3_fitcatch_plot.jpeg",
-#      plot = fleet3_plot,
-#     width = 10, height = 8, units = "in", dpi = 300)
-
-
-
-#############
-### SURVEY BIOMASS
-#############
-# Use your existing rep_outputs and gettables()
-
-all_survey_fits <- purrr::map_dfr(seq_along(rep_simoutputs), function(i) {
-  cat("Extracting survey biomass from:", rep_files_sim[i], "\n")
-  
-  # Use gettables() on each .rep file path
-  tablist <- gettables(rep_files_sim[i], biorows, catchrows)
-  
-  surveydf <- tablist[[1]] %>%
-    mutate(
-      obs = biomass + 1e-07,
-      pred = pred_bio + 1e-07,
-      log_obs = log(obs),
-      log_pred = log(pred),
-      log_lo = log_obs - 1.96 * cv,
-      log_hi = log_obs + 1.96 * cv,
-      species = hydraDataList$speciesList[species],
-      isim = i  # simulation index
-    )
-  
-  return(surveydf)
-})
-
-
-# Estimated survey biomass summary (from 100 rep files)
-est_summary_survey <- all_survey_fits %>%
-  group_by(year, species, survey) %>%
-  summarise(
-    mean_log_est = mean(log_pred, na.rm = TRUE),
-    lo = quantile(log_pred, 0.025, na.rm = TRUE),
-    hi = quantile(log_pred, 0.975, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# "True" survey biomass from OM .rep file
-
-true_summary_survey <- OM_survey %>%
-  mutate(
-    log_true = log(biomass + 1e-07),
-    species = hydraDataList$speciesList[species]
-  ) %>%
-  group_by(year, species, survey) %>%
-  summarise(
-    mean_log_true = mean(log_true, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# Join estimated and true summaries
-plot_data_survey <- left_join(est_summary_survey, true_summary_survey,
-                              by = c("year", "species", "survey"))
-
-# Plot
-survey_plot <- ggplot(plot_data_survey, aes(x = year)) +
-  geom_ribbon(aes(ymin = lo, ymax = hi), fill = "green", alpha = 0.3) +
-  geom_line(aes(y = mean_log_est), color = "darkgreen", size = 1) +
-  geom_line(aes(y = mean_log_true), color = "black", linetype = "dashed", size = 1) +
-  facet_wrap(~species, scales = "free_y") +
-  labs(
-    title = "Mean Estimated Survey Biomass vs. Operating Model Survey Biomass",
-    x = "Year",
-    y = "log(Biomass)",
-    caption = "Green: Estimated mean ± 95% CI | Black dashed: OM survey biomass"
-  ) +
-  theme_minimal()
-
-print(survey_plot)
-
-#ggsave("survey_fit_plot.jpeg", plot = survey_plot, width = 10, height = 8, units = "in", dpi = 300)
-
-#################
-#### PERFORMANCE METRICS
-##################
-
-# Per species/fleet/year or just overall
-#RMSE Error between the model estimate and OM value. Shows the average size of errors — larger values mean greater deviation.
- 
-plot_data_catch %>%
-  summarise(
-    RMSE = sqrt(mean((mean_log_est - mean_log_true)^2, na.rm = TRUE)),
-    MAE = mean(abs(mean_log_est - mean_log_true), na.rm = TRUE)
-  )
-
-# The mean difference between estimated and true values. Positive = overestimation; negative = underestimation.
-
-plot_data_catch %>%
-  summarise(
-    Bias = mean(mean_log_est - mean_log_true, na.rm = TRUE)
-  )
-
-residual_catch<-ggplot(plot_data_catch, aes(x = mean_log_est - mean_log_true)) +
-  geom_histogram(bins = 30, fill = "blue", alpha = 0.6) +
-  facet_wrap(~species) +
-  labs(title = "Residual Distribution: Estimated - OM", x = "Residual", y = "Frequency")
-
-print(residual_catch)
-
-#ggsave("residual_catch.jpeg", plot = residual_catch, width = 10, height = 8, units = "in", dpi = 300)
-
-# Coverage rate: The % of times the OM value was within the model’s 95% confidence interval (CI). Ideally near 95% if your intervals are well calibrated.
-
-plot_data_catch %>%
-  mutate(in_CI = mean_log_true >= lo & mean_log_true <= hi) %>%
-  group_by(species) %>%
-  summarise(coverage_rate = mean(in_CI, na.rm = TRUE))
-
 
 
 
