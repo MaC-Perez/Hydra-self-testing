@@ -20,6 +20,7 @@ source("R/gettables.R")
 library(tidyverse)
 library(hydradata)
 library(compResidual)
+library(scales)
 ```
 
 
@@ -29,10 +30,8 @@ library(compResidual)
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 
 #READ FITS FROM SARAHS DATA SETS
-#repfile <- "OM_scenarios/OM/hydra_sim.rep"
 repfile <- "OM_scenarios/OM/hydra_sim.rep"
-
-
+#repfile <- "sims/deterministic/hydra_sim.rep"
 output<-reptoRlist(repfile)
 
 #### READ CATCH AND SURVEY OBSERVED BIOMASS ####
@@ -198,21 +197,25 @@ est_bio %>%
   theme_minimal() +
   labs(x = "Year",
        y = "Biomass (t)",
-       title = "Time series of estimated biomass")
+       title = "Time series of estimated biomass") +
+    scale_y_continuous(labels = label_number(accuracy = 1))
+
 ```
 
-
+#### Biomass time series
 ```{r, echo=F}
 est_bio %>% 
   ggplot() +
-  aes(x = year, y = log_bio) +
+  aes(x = year, y = log(bio)) +
   #geom_point() +
   geom_line() +
   facet_wrap(~species, scales = "free") +
   theme_minimal() +
   labs(x = "Year",
        y = "Biomass (t)",
-       title = "Time series of estimated LN(biomass)")
+       title = "Time series of estimated LN biomass") +
+    scale_y_continuous(labels = label_number(accuracy = 1))
+
 ```
 
 #### Fishing mortality time series
