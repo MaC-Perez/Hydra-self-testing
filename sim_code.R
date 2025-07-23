@@ -136,7 +136,7 @@ for (isim in 1:100) {
 # remove  %>% filter(survey==1) if you have 2 surveys
  
   obs_survey <- hydraDataList$observedSurvSize  %>% filter(survey == 1)  %>% tibble()
-  obs_survey <- obs_survey %>% pivot_longer(zxcols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
+  obs_survey <- obs_survey %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
     
     mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
            label = rep("survey",nrow(.)))
@@ -254,7 +254,7 @@ for (isim in 1:100) {
 
 # save the simulated data object 
 #write_rds(sim_data, "sim_data.rds")
-write_rds(sim_data, "sim_data_1survey.rds")
+#write_rds(sim_data, "sim_data_1survey.rds")
 
 #### WRITE tsDat FUNCTION ####
 source("R/write_tsDatFile.R")
@@ -290,7 +290,7 @@ setwd(dir)
 #system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
 #file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
 nsim<-1
-for (nsim in 1:100)
+for (nsim in 1:100) ### DO NOT FORGET TO CHANGE THE NAME OF THE FILE hydra_sim_GBself_5bin-ts.dat FOR hydra_GBself_5bin_simdata-ts.dat
 {
   file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
   system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
