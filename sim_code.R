@@ -21,11 +21,9 @@ hydraDataList$observedSurvDiet<-hydraDataList[["observedSurvDiet"]]%>%
 hydraDataList$Nsurveys<-(Nsurveys=1)
 hydraDataList$Nsurvey_obs<-(Nsurvey_obs=166)
 hydraDataList$Nsurvey_size_obs<-(Nsurvey_size_obs=166)
-hydraDataList$Ndietprop_obs<-(Ndietprop_obs=112)
-hydraDataList[["observedSurvDiet"]][["inpN"]]<-(inpN=25)
+hydraDataList$Ndietprop_obs<-(Ndietprop_obs=89)
 hydraDataList[["observedBiomass"]][["cv"]]<-(cv=0.2)
-hydraDataList[["observedCatchSize"]][["inpN"]]<-(inpN=25)
-hydraDataList[["observedSurvSize"]][["inpN"]]<-(inpN=25)
+hydraDataList[["observedCatch"]][["cv"]]<-(cv=0.05)
 
 repfile <- "OM_scenarios/OM/hydra_sim.rep"
 output<-reptoRlist(repfile)
@@ -57,7 +55,10 @@ catch<-indexfits[[2]]%>%
 # create simulation object
 set.seed(23)
 sim_data <- NULL
-isim <- 1
+#isim <- 1
+
+### DEFINE COMPS SAMPLE SIZE 
+sample_size<-100
 
 for (isim in 1:100) {  
   
@@ -65,19 +66,14 @@ for (isim in 1:100) {
   
   ##### SIMULATE CATCH DATA ######
   hydraDataList$observedCatch <- obs_catchB %>%
-    mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),indexfits[[2]]$cv)) # sd=0.000001
-  
-  sim_data[[isim]] <- hydraDataList
-  
+    mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),hydraDataList[["observedCatch"]][["cv"]])) # sd=0.000001
   
   ##### SIMULATE SURVEY BIOMASS DATA ######
   # if you have one survey
   hydraDataList$observedBiomass <- obs_surveyB %>%
-    mutate(biomass = rnorm(nrow(.), log(indexfits[[1]]$pred_bio),indexfits[[1]]$cv)) # sd=0.000001
+    mutate(biomass = rnorm(nrow(.), log(indexfits[[1]]$pred_bio),hydraDataList[["observedBiomass"]][["cv"]])) # sd=0.000001
   # store simulated object
-  sim_data[[isim]] <- hydraDataList
-  
-  
+
   #### SIMULATE CATCH SIZE COMPOSITION DATA ####
   
   obs_catch <- hydraDataList$observedCatchSize %>% tibble()
@@ -86,53 +82,44 @@ for (isim in 1:100) {
            label = rep("catch",nrow(.)))# %>% filter(value != -999)
   obs_catch$value[which(obs_catch$value == -999)] = 0.00001
   
-  pred_catch<-output$pred_catch_size
-  obs_catch$pred_catch<-pred_catch
+  #pred_catch<-output$pred_catch_size
+  #obs_catch$pred_catch<-pred_catch
 
-  obs_catch <-obs_catch %>% 
-    mutate(value=pred_catch) %>%
-    select(-pred_catch)
+  #obs_catch <-obs_catch %>% 
+  #  mutate(value=pred_catch) %>%
+  #  select(-pred_catch)
+  
+  simulated_props <- obs_catch %>%
+    group_by(species, year) %>%
+    # Normalize value to ensure it sums to 1 for each species-year
+    mutate(norm_value = value / sum(value)) %>%
+    summarise(
+      lenbin = lenbin,
+      sim_matrix = rmultinom(1, size = sample_size, prob = norm_value),  # returns matrix
+      .groups = "drop"
+    ) %>%
+    mutate(sim_count = as.vector(sim_matrix)) %>%
+    select(species, year, lenbin, sim_count) %>%
+    mutate(simulated_prop = sim_count / sample_size)
   
   
-  # Agrupar por combinaciones únicas de fishery, species y year
-  group_keys <- obs_catch %>%
-    select(fishery, species, year) %>%
-    distinct()
+  # Reasignar valores simulados
+  obs_catch$value <- simulated_props$simulated_prop
+  obs_catch$inpN  <- sample_size
+  #obs_count$count  <- simulated_props$sim_count 
   
-  temporal1 = numeric()
-  # Iterar por grupo
-  for (i in 1:nrow(group_keys)) {
-    this_group <- group_keys[i, ]
-    
-    # Subgrupo para esa combinación
-    subgroup <- obs_catch %>%
-      filter(
-        fishery == this_group$fishery,
-        species == this_group$species,
-        year == this_group$year
-      ) %>%
-      arrange(lenbin)
-    
-    probs <- subgroup$value
-    probs <- probs / sum(probs)  # asegurar que sumen 1
-    sim_counts <- rmultinom(1, size = 100, prob = probs)
-    simulated_props <- as.numeric(sim_counts) / 100
-    
-    temporal1 <- c(temporal1, simulated_props)
-  }
-  
-  # Reemplazar valores simulados
-  obs_catch$value <- temporal1
-  
-  # Convertir de nuevo a formato ancho
+  # Convertir de vuelta a formato ancho
   hydraDataList$observedCatchSize <- obs_catch %>%
     pivot_wider(names_from = lenbin, values_from = value,
                 names_prefix = "sizebin") %>%
+    mutate(inpN = sample_size) %>% 
     arrange(fishery, species, year) %>%
     select(-label)
   
+  #to check if I am getting the correct values
+  #write.csv(surv_size, file = "surv_size.csv", row.names = T)
   
-  #### SIMULATE SURVEY SIZE COMPOSITION DATA ####
+#### SIMULATE SURVEY SIZE COMPOSITION DATA ####
 # remove  %>% filter(survey==1) if you have 2 surveys
  
   obs_survey <- hydraDataList$observedSurvSize  %>% filter(survey == 1)  %>% tibble()
@@ -142,104 +129,87 @@ for (isim in 1:100) {
            label = rep("survey",nrow(.)))
   obs_survey$value[which(obs_survey$value == -999)] = 0.00001
   
-  pred_surv<-output$pred_survey_size
-  obs_survey$pred_surv<-pred_surv
+  #pred_surv<-output$pred_survey_size
+  #obs_survey$pred_surv<-pred_surv
   
-  obs_survey <-obs_survey %>% 
-    mutate(value=pred_surv) %>%
-    select(-pred_surv)
+ # obs_survey <-obs_survey %>% 
+ #    mutate(value=pred_surv) %>%
+ #   select(-pred_surv)
   
-  # Agrupar combinaciones únicas
-  group_keys <- obs_survey %>%
-    select(survey, species, year) %>%
-    distinct()
+  simulated_props <- obs_survey %>%
+    group_by(species, year) %>%
+    # Normalize value to ensure it sums to 1 for each species-year
+    mutate(norm_value = value / sum(value)) %>%
+    summarise(
+      lenbin = lenbin,
+      sim_matrix = rmultinom(1, size = sample_size, prob = norm_value),  # returns matrix
+      .groups = "drop"
+    ) %>%
+    mutate(sim_count = as.vector(sim_matrix)) %>%
+    select(species, year, lenbin, sim_count) %>%
+    mutate(simulated_prop = sim_count / sample_size)
   
-  temporal1 = numeric()
- 
-  # Simulación por grupo
-  for (i in 1:nrow(group_keys)) {
-    this_group <- group_keys[i, ]
-    
-    subgroup <- obs_survey %>%
-      filter(
-        survey == this_group$survey,
-        species == this_group$species,
-        year == this_group$year
-      ) %>%
-      arrange(lenbin)
-     
-    probs <- subgroup$value
-    probs <- probs / sum(probs)
-    sim_counts <- rmultinom(1, size = 100, prob = probs)
-    simulated_props <- as.numeric(sim_counts) / 100
-    
-    temporal1 <- c(temporal1, simulated_props)
-  }
   
   # Reasignar valores simulados
-  obs_survey$value <- temporal1
+  obs_survey$value <- simulated_props$simulated_prop
+  obs_survey$inpN  <- sample_size
+  #obs_survey$count  <- simulated_props$sim_count 
   
   # Convertir de vuelta a formato ancho
   hydraDataList$observedSurvSize <- obs_survey %>%
     pivot_wider(names_from = lenbin, values_from = value,
-    names_prefix = "sizebin") %>%
+                names_prefix = "sizebin") %>%
+    mutate(inpN = sample_size) %>% 
     arrange(survey, species, year) %>%
-                select(-label)
+    select(-label)
   
   #to check if I am getting the correct values
   #write.csv(surv_size, file = "surv_size.csv", row.names = T)
   
-  
-  #### SIMULATE DIET COMPOSITION DATA ####
+#### SIMULATE DIET COMPOSITION DATA ####
+  ### for diet data I am suing both survey so if I have 100 for sample size in both survey i can just sum both
   
   obsdiet_comp <- hydraDataList$observedSurvDiet %>% tibble()
-  obsdiet_comp<-obsdiet_comp %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
+  diet_combined <- obsdiet_comp %>%
+    group_by(species, year, sizebin) %>%
+    summarise(
+      inpN = sum(inpN),  # Optional: reflects total sample size (e.g., 100 + 100 = 200)
+      across(where(is.numeric), mean, .names = "{.col}"),
+      .groups = "drop"
+    ) 
+  
+  obsdiet_comp<-diet_combined %>% pivot_longer(cols=5:ncol(.), names_to = "prey") %>%
     mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
       #species = hydraDataList$speciesList[species],
       label = rep("diet",nrow(.)))
   obsdiet_comp$value[which(obsdiet_comp$value == -999)] = 0.000001
   obsdiet_comp <- select(obsdiet_comp, -label)
   
-  pred_diet<-output$pred_dietprop
-  if (length(pred_diet)!=nrow(obsdiet_comp)) obsdiet_comp <- obsdiet_comp %>% filter(value != 0)
-  nll_diet<-output$nll_dietprop
   
-  hydraDataList$observedSurvDiet
+  simulated_diet <- obsdiet_comp %>%
+    group_by(species, year, sizebin) %>%
+    mutate(
+      norm_value = value / sum(value)  # in case values don’t sum exactly to 1
+    ) %>%
+    summarise(
+      prey = prey,
+      sim_matrix = rmultinom(1, size = sample_size, prob = norm_value),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      sim_count = as.vector(sim_matrix),
+      simulated_prop = sim_count / sample_size
+    ) %>%
+    select(species, year, sizebin, prey, simulated_prop)
   
-  temporal1 = numeric()
-  # Lista única de combinaciones de grupos
-  group_keys <- obsdiet_comp %>%
-    select(survey, species, year, sizebin) %>%
-    distinct()
   
-    # Iterar por combinación única
-  for (i in 1:nrow(group_keys)) {
-    this_group <- group_keys[i, ]
-    
-    # Filtrar solo las filas de esa combinación
-    subgroup <- obsdiet_comp %>%
-      filter(
-        survey == this_group$survey,
-        species == this_group$species,
-        year == this_group$year,
-        sizebin == this_group$sizebin
-      )
-    
-    # Obtener proporciones de presa y simular
-    probs <- subgroup$value
-    probs <- probs / sum(probs)  # normalizar
-    simulated_counts <- rmultinom(1, size = 100, prob = probs)
-    simulated_props <- as.numeric(simulated_counts) / 100
-    
-    temporal1 <- c(temporal1, simulated_props)
-  }
+  obsdiet_comp$value = simulated_diet$simulated_prop
+  hydraDataList$observedSurvDiet <- obsdiet_comp %>%
+    mutate(inpN = 100) %>%
+    pivot_wider(names_from = "prey")
   
-  # replace data with simulated data
-  
-  obsdiet_comp$value = temporal1
-  hydraDataList$observedSurvDiet<-obsdiet_comp
-  hydraDataList$observedSurvDiet<-hydraDataList$observedSurvDiet %>% pivot_wider(names_from = "prey")
-  
+  #write.csv(hydraDataList$observedSurvDiet, file = "survvvvv.csv", row.names = T)
+  sim_data[[isim]] <- hydraDataList
 }
 
 # change simulated catch and survey biomass data from log scale to the original scale 
@@ -250,11 +220,8 @@ for (isim in 1:100) {
   
   }
 
-#write.csv(indexfits[[1]], file = "original.csv", row.names = T)
-
 # save the simulated data object 
-#write_rds(sim_data, "sim_data.rds")
-#write_rds(sim_data, "sim_data_1survey.rds")
+#write_rds(sim_data, "sim_data_1survey2.rds")
 
 #### WRITE tsDat FUNCTION ####
 source("R/write_tsDatFile.R")
@@ -263,7 +230,7 @@ source("R/read.report.R")
 #read original observations (hydraDataList) and simulated data sets (hydraDataList2)
 #hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
 #hydraDataList2 <- readRDS("sim_data.rds")
-hydraDataList2 <- readRDS("sim_data_1survey.rds")
+hydraDataList2 <- readRDS("sim_data_1survey2.rds")
 
 
 listOfParameters<-list()
