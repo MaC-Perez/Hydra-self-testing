@@ -29,6 +29,10 @@ library(scales)
 #READ SARAHS DATA SETS
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 
+hydraDataList[["observedSurvDiet"]] <- hydraDataList[["observedSurvDiet"]] %>%
+  filter(species %in% c(1, 4))
+
+
 #READ FITS FROM SARAHS DATA SETS
 repfile <- "OM_scenarios/OM/hydra_sim.rep"
 #repfile <- "sims/deterministic/hydra_sim.rep"
@@ -444,7 +448,40 @@ diet_catch <- bind_rows(obs_catch, obs_survey)
 # if you have 1 survey use this line 
 #obs_diet <- hydraDataList$observedSurvDiet %>% filter(survey == 1) %>%
 
-obs_diet <- hydraDataList$observedSurvDiet$survey[hydraDataList$observedSurvDiet$survey == 2] <- 1
+obs_diet <- hydraDataList$observedSurvDiet
+
+colnames(obs_diet) <- c("survey", "year", "species", "sizebin",
+                          "inpN", "wt_prey_1", "wt_prey_2", 
+                          "wt_prey_3", "wt_prey_4", "other")
+
+diet_combined <- obs_diet %>%
+  group_by(year, species, sizebin) %>%
+  mutate(w = inpN) %>%
+  summarise(
+    InpN = sum(w),
+    across(starts_with("wt_prey_"),
+           ~ weighted.mean(.x, w, na.rm = TRUE)),
+    other = weighted.mean(other, w, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(survey = 1) %>%
+  relocate(survey, .before = year)   # put survey back in the first column
+
+colnames(diet_combined) <- c("survey", "year", "species", "sizebin",
+                          "inpN", "Atlantic_cod", "Atlantic_herring", 
+                          "Atlantic_mackerel", "Spiny_dogfish", "allotherprey")
+
+hydraDataList$observedSurvDiet<-diet_combined
+
+#obs_diet <- hydraDataList$observedSurvDiet$survey[hydraDataList$observedSurvDiet$survey == 2] <- 1
+#obs_diet <- hydraDataList$observedSurvDiet %>% tibble()
+#obs_diet<-obs_diet %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
+#  mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
+#    species = hydraDataList$speciesList[species],
+#    label = rep("diet",nrow(.))) %>%
+#  filter(!species %in% c("Atlantic_herring", "Atlantic_mackerel")) %>% # Remove #specific species
+#  I()
+
 obs_diet <- hydraDataList$observedSurvDiet %>% tibble()
 obs_diet<-obs_diet %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
   mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
@@ -452,7 +489,6 @@ obs_diet<-obs_diet %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
     label = rep("diet",nrow(.))) %>%
   filter(!species %in% c("Atlantic_herring", "Atlantic_mackerel")) %>% # Remove specific species
   I()
-
 
 pred_diet<-output$pred_dietprop
 
