@@ -7,8 +7,6 @@ library(readxl)
 library(hydradata)
 # rm(list = ls())
 
-#surv_dietcomps<-read_xlsx("2surv_dietcomps.xlsx", col_names = TRUE)
-
 ### Read observed and estimated values, Hydra data list from Sarahs 4 species scenario
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 
@@ -23,13 +21,10 @@ hydraDataList$Nsurvey_obs<-(Nsurvey_obs=166)
 hydraDataList$Nsurvey_size_obs<-(Nsurvey_size_obs=166)
 hydraDataList$Ndietprop_obs<-(Ndietprop_obs=89)
 hydraDataList[["observedBiomass"]][["cv"]]<-(cv=0.2)
-hydraDataList[["observedCatch"]][["cv"]]<-(cv=0.05)
+hydraDataList[["observedCatch"]][["cv"]]<-(cv=0.15)
 
-repfile <- "OM_scenarios/OM/hydra_sim.rep"
+repfile <- "OM_scenarios/OM_case1/hydra_sim.rep"
 output<-reptoRlist(repfile)
-
-#repfile<-read.table("inputs/initial_run/pmse_predvals.out", header = FALSE, skip=2, nrow=336)
-#colnames(repfile)<-c("survey", "year", "spp", "area", "pred_survey")
 
 #### READ CATCH AND SURVEY OBSERVED BIOMASS ####
 # 2 surveys use this line 
@@ -82,13 +77,6 @@ for (isim in 1:100) {
            label = rep("catch",nrow(.)))# %>% filter(value != -999)
   obs_catch$value[which(obs_catch$value == -999)] = 0.00001
   
-  #pred_catch<-output$pred_catch_size
-  #obs_catch$pred_catch<-pred_catch
-
-  #obs_catch <-obs_catch %>% 
-  #  mutate(value=pred_catch) %>%
-  #  select(-pred_catch)
-  
   simulated_props <- obs_catch %>%
     group_by(species, year) %>%
     # Normalize value to ensure it sums to 1 for each species-year
@@ -129,13 +117,6 @@ for (isim in 1:100) {
            label = rep("survey",nrow(.)))
   obs_survey$value[which(obs_survey$value == -999)] = 0.00001
   
-  #pred_surv<-output$pred_survey_size
-  #obs_survey$pred_surv<-pred_surv
-  
- # obs_survey <-obs_survey %>% 
- #    mutate(value=pred_surv) %>%
- #   select(-pred_surv)
-  
   simulated_props <- obs_survey %>%
     group_by(species, year) %>%
     # Normalize value to ensure it sums to 1 for each species-year
@@ -171,20 +152,30 @@ for (isim in 1:100) {
   
   obsdiet_comp <- hydraDataList$observedSurvDiet %>% tibble()
   diet_combined <- obsdiet_comp %>%
-    group_by(species, year, sizebin) %>%
+    group_by(year, species, sizebin) %>%
+    mutate(w = inpN) %>%
     summarise(
-      inpN = sum(inpN),  # Optional: reflects total sample size (e.g., 100 + 100 = 200)
-      across(where(is.numeric), mean, .names = "{.col}"),
+      InpN = sum(w),
+      across(c(Atlantic_cod, Atlantic_herring, Atlantic_mackerel, Spiny_dogfish, allotherprey),
+             ~ weighted.mean(.x, w, na.rm = TRUE)),
       .groups = "drop"
-    ) 
+    ) %>%
+    mutate(survey = 1) %>%
+    relocate(survey, .before = year)   # put survey back in the first column
   
-  obsdiet_comp<-diet_combined %>% pivot_longer(cols=5:ncol(.), names_to = "prey") %>%
-    mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
-      #species = hydraDataList$speciesList[species],
-      label = rep("diet",nrow(.)))
-  obsdiet_comp$value[which(obsdiet_comp$value == -999)] = 0.000001
-  obsdiet_comp <- select(obsdiet_comp, -label)
+  colnames(diet_combined) <- c("survey", "year", "species", "sizebin",
+                               "inpN", "Atlantic_cod", "Atlantic_herring", 
+                               "Atlantic_mackerel", "Spiny_dogfish", "allotherprey")
   
+  obsdiet_comp <- diet_combined %>%
+    pivot_longer(
+      cols = c(Atlantic_cod, Atlantic_herring, Atlantic_mackerel, Spiny_dogfish, allotherprey),
+      names_to = "prey",
+      values_to = "value"
+    ) %>%
+    mutate(
+      value = ifelse(value == -999, 0.000001, value)
+    )
   
   simulated_diet <- obsdiet_comp %>%
     group_by(species, year, sizebin) %>%
@@ -221,16 +212,14 @@ for (isim in 1:100) {
   }
 
 # save the simulated data object 
-#write_rds(sim_data, "sim_data_1survey2.rds")
+#write_rds(sim_data, "sim_data_OM.rds")
 
 #### WRITE tsDat FUNCTION ####
 source("R/write_tsDatFile.R")
 source("R/read.report.R")
 
 #read original observations (hydraDataList) and simulated data sets (hydraDataList2)
-#hydraDataList <- readRDS("inputs/hydra_sim_GBself_5bin.rds")
-#hydraDataList2 <- readRDS("sim_data.rds")
-hydraDataList2 <- readRDS("sim_data_1survey2.rds")
+hydraDataList2 <- readRDS("sim_data_OM.rds")
 
 
 listOfParameters<-list()
@@ -247,7 +236,7 @@ for (nsim in 1:100){
 library(here)
 dir<-here()
 #dir<-paste0(dir,"/","sims","/","initial")
-dir<-paste0(dir,"/","sims","/","OM")
+dir<-paste0(dir,"/","sims","/","OM_april")
 
 setwd(dir)
 
@@ -256,18 +245,18 @@ setwd(dir)
 #isim<-1
 #system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
 #file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
-nsim<-1
+#nsim <- 100 
+
 for (nsim in 1:100) ### DO NOT FORGET TO CHANGE THE NAME OF THE FILE hydra_sim_GBself_5bin-ts.dat FOR hydra_GBself_5bin_simdata-ts.dat
 {
   file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
   system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
   file.copy(from = "hydra_sim.rep", to = paste0("rep/hydra_sim",nsim,".rep"))
   file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
-  file.copy(from = "HYDRA_~1.cor", to = paste0("cor/hydra_sim",nsim,".cor"))
-  file.copy(from = "HYDRA_~1.std", to = paste0("std/hydra_sim",nsim,".std"))
+  file.copy(from = "hydra_sim.cor", to = paste0("cor/hydra_sim",nsim,".cor"))
+  file.copy(from = "hydra_sim.std", to = paste0("std/hydra_sim",nsim,".std"))
   file.copy(from = "pmse_predvals.out", to = paste0("out/pmse_predvals",nsim,".out"))
 }
-
 
 
 #######
