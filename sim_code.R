@@ -21,7 +21,7 @@ hydraDataList$Nsurvey_obs<-(Nsurvey_obs=166)
 hydraDataList$Nsurvey_size_obs<-(Nsurvey_size_obs=166)
 hydraDataList$Ndietprop_obs<-(Ndietprop_obs=89)
 hydraDataList[["observedBiomass"]][["cv"]]<-(cv=0.2)
-hydraDataList[["observedCatch"]][["cv"]]<-(cv=0.15)
+hydraDataList[["observedCatch"]][["cv"]]<-(cv=0.05)
 
 repfile <- "OM_scenarios/OM_case1/hydra_sim.rep"
 output<-reptoRlist(repfile)
@@ -53,7 +53,7 @@ sim_data <- NULL
 #isim <- 1
 
 ### DEFINE COMPS SAMPLE SIZE 
-sample_size<-100
+sample_size<-25
 
 for (isim in 1:100) {  
   
@@ -196,7 +196,7 @@ for (isim in 1:100) {
   
   obsdiet_comp$value = simulated_diet$simulated_prop
   hydraDataList$observedSurvDiet <- obsdiet_comp %>%
-    mutate(inpN = 100) %>%
+    mutate(inpN = 25) %>%
     pivot_wider(names_from = "prey")
   
   #write.csv(hydraDataList$observedSurvDiet, file = "survvvvv.csv", row.names = T)
@@ -212,20 +212,36 @@ for (isim in 1:100) {
   }
 
 # save the simulated data object 
-#write_rds(sim_data, "sim_data_OM.rds")
+#write_rds(sim_data, "sims/OM_case1/sim_data_OM.rds")
 
 #### WRITE tsDat FUNCTION ####
 source("R/write_tsDatFile.R")
 source("R/read.report.R")
 
 #read original observations (hydraDataList) and simulated data sets (hydraDataList2)
-hydraDataList2 <- readRDS("sim_data_OM.rds")
+hydraDataList2 <- readRDS("sims/OM_case1/sim_data_OM.rds")
 
 
 listOfParameters<-list()
 listOfParameters$outDir<-paste0(getwd(),"/","sims","/")
 listOfParameters$outputFilename<-"hydra_sim"
 listOfParameters$fillLength <- 2000
+
+for (nsim in 1:100) {
+  dat <- hydraDataList2[[nsim]]
+  
+  dat$observedCatchSize$inpN <- 25
+  dat$observedSurvSize$inpN  <- 25
+  dat$observedSurvDiet$inpN  <- 25
+  
+  dat$Nsurvey_size_obs <- nrow(dat$observedSurvSize)
+  dat$Ndietprop_obs    <- nrow(dat$observedSurvDiet)
+  dat$Nsurvey_obs      <- nrow(dat$observedBiomass)
+  
+  # overwrite object before writing
+  write_tsDatFile(dat, listOfParameters)
+}
+
 
 for (nsim in 1:100){ 
   write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
@@ -236,7 +252,7 @@ for (nsim in 1:100){
 library(here)
 dir<-here()
 #dir<-paste0(dir,"/","sims","/","initial")
-dir<-paste0(dir,"/","sims","/","OM_april")
+dir<-paste0(dir,"/","sims","/","OM_case1")
 
 setwd(dir)
 

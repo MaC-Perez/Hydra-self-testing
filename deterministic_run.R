@@ -86,8 +86,35 @@ for (isim in 1:1) {
     arrange(fishery, species, year) %>%
     select(-label)
   
+  #### REPLACE SURVEY SIZE COMPOSITION DATA FROM OM estimates####
+  # remove  %>% filter(survey==1) if you have 2 surveys
   
- #### SIMULATE SURVEY SIZE COMPOSITION DATA ####
+  obs_survey <- hydraDataList$observedSurvSize  %>% filter(survey == 1)  %>% tibble()
+  obs_survey <- obs_survey %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
+    
+    mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
+           label = rep("survey",nrow(.)))
+  obs_survey$value[which(obs_survey$value == -999)] = 0.00001
+  
+  pred_survey<-output$pred_survey_size
+  obs_survey$pred_survey<-pred_survey
+  
+  obs_survey <-obs_survey %>% 
+    mutate(value=pred_survey) %>%
+    select(-pred_survey)
+  
+  # Convertir de vuelta a formato ancho
+  hydraDataList$observedSurvSize <- obs_survey %>%
+    pivot_wider(names_from = lenbin, values_from = value,
+                names_prefix = "sizebin") %>%
+    mutate(inpN = sample_size) %>% 
+    arrange(survey, species, year) %>%
+    select(-label)
+  
+  #to check if I am getting the correct values
+  #write.csv(surv_size, file = "surv_size.csv", row.names = T)
+  
+ #### SIMULATE SURVEY DIET COMPOSITION DATA ####
   # remove  %>% filter(survey==1) if you have 2 surveys
   
   sample_size<-25
@@ -109,37 +136,42 @@ for (isim in 1:1) {
                                "inpN", "Atlantic_cod", "Atlantic_herring", 
                                "Atlantic_mackerel", "Spiny_dogfish", "allotherprey")
   
-  obsdiet_comp <- diet_combined %>%
-    pivot_longer(
-      cols = c(Atlantic_cod, Atlantic_herring, Atlantic_mackerel, Spiny_dogfish, allotherprey),
-      names_to = "prey",
-      values_to = "value"
-    ) %>%
-    mutate(
-      value = ifelse(value == -999, 0.000001, value)
-    )
+  hydraDataList$observedSurvDiet<-diet_combined
   
-  simulated_diet <- obsdiet_comp %>%
-    group_by(species, year, sizebin) %>%
+
+  diet_tbl <- diet_combined %>%
+    tibble() %>%
     mutate(
-      norm_value = value / sum(value)  # in case values don’t sum exactly to 1
+      inpN   = dplyr::coalesce(inpN, inpN),
+      survey = dplyr::coalesce(survey, 1L)
     ) %>%
-    summarise(
-      prey = prey,
-      sim_matrix = rmultinom(1, size = sample_size, prob = norm_value),
-      .groups = "drop"
-    ) %>%
-    mutate(
-      sim_count = as.vector(sim_matrix),
-      simulated_prop = sim_count / sample_size
-    ) %>%
-    select(species, year, sizebin, prey, simulated_prop)
+    select(survey, year, species, sizebin, inpN, everything())
   
+  # Prey columns = all columns after the first 5 (keep your existing order)
+  prey_cols <- names(diet_tbl)[6:ncol(diet_tbl)]
   
-  obsdiet_comp$value = simulated_diet$simulated_prop
-  hydraDataList$observedSurvDiet <- obsdiet_comp %>%
-    mutate(inpN = 25) %>%
-    pivot_wider(names_from = "prey")
+  # OM predictions -> matrix (row-major: rows = strata, cols = prey)
+  pred_vec <- as.numeric(output$pred_dietprop)
+  
+  n_rows <- nrow(diet_tbl)
+  n_prey <- length(prey_cols)
+  stopifnot(length(pred_vec) == n_rows * n_prey)
+  
+  pred_mat <- matrix(pred_vec, nrow = n_rows, ncol = n_prey, byrow = TRUE)
+  
+#Clean tiny eps and renormalize each row to sum to 1 (if > 0)
+  pred_mat[pred_mat < 1e-12] <- 0
+  row_sums <- rowSums(pred_mat)
+  row_sums[row_sums == 0] <- 1  # avoid divide-by-zero for all-zero rows
+  pred_mat <- pred_mat / row_sums
+  
+  # Overwrite prey columns in the desired order
+  diet_tbl[prey_cols] <- as.data.frame(pred_mat)
+  
+  diet_tbl <- diet_tbl %>%
+    select(survey, year, species, sizebin, inpN, all_of(prey_cols))
+  
+  hydraDataList$observedSurvDiet <- diet_tbl
   
   #write.csv(hydraDataList$observedSurvDiet, file = "survvvvv.csv", row.names = T)
   sim_data[[isim]] <- hydraDataList
@@ -176,7 +208,7 @@ source("R/read.report.R")
 
 ## FISHING MORTALITY OM estimate
 
-repfile_OM <- "OM_scenarios/OM/hydra_sim.rep"
+repfile_OM <- "OM_scenarios/OM_case1/hydra_sim.rep"
 output_OM<-reptoRlist(repfile_OM)
 
 

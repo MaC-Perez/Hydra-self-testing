@@ -10,7 +10,7 @@ library(scales)
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
 
 # READ FITS FROM SARAHS DATA SETS
-repfile <- "OM_scenarios/OM_case2/hydra_sim.rep"
+repfile <- "OM_scenarios/OM_case1/hydra_sim.rep"
 output <- reptoRlist(repfile)
 
 obs_surveyB <- hydraDataList$observedBiomass %>% 
@@ -36,26 +36,20 @@ est_bio <- output$EstBsize %>%
          year = (1-1/stepperyr) + year / stepperyr,  #5 time steps per year
          log_bio = ifelse(bio>0,log(bio),NA))
 
-# Simulation biomass
-#survey_all <- do.call(rbind, lapply(1:100, function(i) {
-#  df <- sim_results[[i]][[1]]   # survey fits
-#  df$sim <- paste0("sim", i)
-#  df
-#})) %>%
-#  mutate(species = hydraDataList$speciesList[species],
-#         source  = "Simulation")
+      source  = "Simulation")
+
 
 library(purrr)
 library(dplyr)
 
 # Function to build file paths 
-file_paths <- paste0("sims/OM_trial/rep/hydra_sim", 1:100, ".rep") 
+file_paths <- paste0("sims/OM_case1/rep/hydra_sim", 1:30, ".rep") 
 # Read each repfile with reptoRlist()
 sim_outputs <- lapply(file_paths, reptoRlist)
 #save
-saveRDS(sim_outputs, "sim_outputs_case2.rds")
+saveRDS(sim_outputs, "sims/OM_case1/sim_outputs_case1.rds")
 #read
-sim_outputs <- readRDS("sim_outputs_case2.rds")
+sim_outputs <- readRDS("sims/OM_case1/sim_outputs_case1.rds")
 
 # Process function (now works, since EstBsize exists)
 process_fit <- function(rep_obj, sim_id) {
@@ -74,7 +68,7 @@ process_fit <- function(rep_obj, sim_id) {
 }
 
 # Apply to all 100 sims
-fits_all <- purrr::map_dfr(1:100, function(i) {
+fits_all <- purrr::map_dfr(1:30, function(i) {
   process_fit(sim_outputs[[i]], i)
 })
 
@@ -225,21 +219,32 @@ indexfits_catch <- indexfits[[2]] %>%
 # ============================================
 # 2. Simulation CATCH (from 100 fits)
 # ============================================
-catch_fits_all <- map_dfr(1:100, function(i) {
-  sim_results[[i]][[2]] %>%    # [[2]] = catch table
-    mutate(
-      species = hydraDataList$speciesList[species],
-      sim = paste0("sim", i),
-      source = "Simulation"
-    ) %>%
-    select(fishery, year, species, pred_catch, sim, source)
+
+catch_colnames <- c("fishery", "area", "year", "species",
+                    "catch", "cv", "pred_catch", "residual", "nll")
+
+catch_fits_all <- map_dfr(1:30, function(i) {
+  df <- as.data.frame(sim_outputs[[i]][["catch"]])
+  colnames(df) <- catch_colnames
+  
+  df %>%
+    mutate(sim = paste0("sim", i)) %>%       # tag simulation number
+    relocate(sim)                            # put sim column first
 })
+
+catch_fits_all <- catch_fits_all %>%
+  mutate(
+    species = hydraDataList$speciesList[species],  # replace numeric ID with species name
+    source  = "Simulation"                         # add new column
+  )
 
 # ============================================
 # 3. Combine OM + Sims
 # ============================================
-catch_all_df <- bind_rows(indexfits_catch, catch_fits_all)
+catch_fits_all_clean <- catch_fits_all %>%
+  select(fishery, year, species, pred_catch, sim, source)
 
+catch_all_df <- bind_rows(indexfits_catch, catch_fits_all_clean)
 
 # ==========================
 #   PLOT OM vs Simulation
