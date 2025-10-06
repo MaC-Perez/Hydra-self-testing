@@ -19,13 +19,14 @@ hydraDataList$observedSurvDiet<-hydraDataList[["observedSurvDiet"]]%>%
 hydraDataList$Nsurveys<-(Nsurveys=1)
 hydraDataList$Nsurvey_obs<-(Nsurvey_obs=166)
 hydraDataList$Nsurvey_size_obs<-(Nsurvey_size_obs=166)
-hydraDataList$Ndietprop_obs<-(Ndietprop_obs=112)
+hydraDataList$Ndietprop_obs<-(Ndietprop_obs=89)
 hydraDataList[["observedSurvDiet"]][["inpN"]]<-(inpN=25)
 hydraDataList[["observedBiomass"]][["cv"]]<-(cv=0.2)
+hydraDataList[["observedCatch"]][["cv"]]<-(cv=0.05)
 hydraDataList[["observedCatchSize"]][["inpN"]]<-(inpN=25)
 hydraDataList[["observedSurvSize"]][["inpN"]]<-(inpN=25)
 
-repfile <- "OM_scenarios/OM/hydra_sim.rep"
+repfile <- "OM_scenarios/OM_case1/hydra_sim.rep"
 output <- reptoRlist(repfile)
 
 obs_surveyB <- hydraDataList$observedBiomass %>% 
@@ -89,55 +90,70 @@ for (isim in 1:1) {
  #### SIMULATE SURVEY SIZE COMPOSITION DATA ####
   # remove  %>% filter(survey==1) if you have 2 surveys
   
-  obs_survey <- hydraDataList$observedSurvSize  %>% filter(survey == 1)  %>% tibble()
-  obs_survey <- obs_survey %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
-    
-    mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-           label = rep("survey",nrow(.)))
-  obs_survey$value[which(obs_survey$value == -999)] = 0.00001
-  
-  pred_surv<-output$pred_survey_size
-  obs_survey$pred_surv<-pred_surv
-  
-  obs_survey <-obs_survey %>% 
-    mutate(value=pred_surv) %>%
-    select(-pred_surv)
-  
-# Convertir de vuelta a formato ancho
-  hydraDataList$observedSurvSize <- obs_survey %>%
-    pivot_wider(names_from = lenbin, values_from = value,
-                names_prefix = "sizebin") %>%
-    arrange(survey, species, year) %>%
-    select(-label)
-  
-  #### REPLACE DIET COMPOSITION DATA from mu om estimates####
+  sample_size<-25
   
   obsdiet_comp <- hydraDataList$observedSurvDiet %>% tibble()
-  obsdiet_comp<-obsdiet_comp %>% pivot_longer(cols=6:ncol(.), names_to = "prey") %>%
-    mutate(#lenbin = as.integer(str_remove(lenbin, "V")),
-      #species = hydraDataList$speciesList[species],
-      label = rep("diet",nrow(.)))
-  obsdiet_comp$value[which(obsdiet_comp$value == -999)] = 0.000001
-  obsdiet_comp <- select(obsdiet_comp, -label)
+  diet_combined <- obsdiet_comp %>%
+    group_by(year, species, sizebin) %>%
+    mutate(w = inpN) %>%
+    summarise(
+      InpN = sum(w),
+      across(c(Atlantic_cod, Atlantic_herring, Atlantic_mackerel, Spiny_dogfish, allotherprey),
+             ~ weighted.mean(.x, w, na.rm = TRUE)),
+      .groups = "drop"
+    ) %>%
+    mutate(survey = 1) %>%
+    relocate(survey, .before = year)   # put survey back in the first column
   
-  pred_diet<-output$pred_dietprop
-  if (length(pred_diet)!=nrow(obsdiet_comp)) obsdiet_comp <- obsdiet_comp %>% filter(value != 0)
-  nll_diet<-output$nll_dietprop
-  obsdiet_comp$value<-pred_diet
+  colnames(diet_combined) <- c("survey", "year", "species", "sizebin",
+                               "inpN", "Atlantic_cod", "Atlantic_herring", 
+                               "Atlantic_mackerel", "Spiny_dogfish", "allotherprey")
   
-  hydraDataList$observedSurvDiet<-obsdiet_comp
-  hydraDataList$observedSurvDiet<-hydraDataList$observedSurvDiet %>% pivot_wider(names_from = "prey")
+  obsdiet_comp <- diet_combined %>%
+    pivot_longer(
+      cols = c(Atlantic_cod, Atlantic_herring, Atlantic_mackerel, Spiny_dogfish, allotherprey),
+      names_to = "prey",
+      values_to = "value"
+    ) %>%
+    mutate(
+      value = ifelse(value == -999, 0.000001, value)
+    )
   
+  simulated_diet <- obsdiet_comp %>%
+    group_by(species, year, sizebin) %>%
+    mutate(
+      norm_value = value / sum(value)  # in case values don’t sum exactly to 1
+    ) %>%
+    summarise(
+      prey = prey,
+      sim_matrix = rmultinom(1, size = sample_size, prob = norm_value),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      sim_count = as.vector(sim_matrix),
+      simulated_prop = sim_count / sample_size
+    ) %>%
+    select(species, year, sizebin, prey, simulated_prop)
+  
+  
+  obsdiet_comp$value = simulated_diet$simulated_prop
+  hydraDataList$observedSurvDiet <- obsdiet_comp %>%
+    mutate(inpN = 25) %>%
+    pivot_wider(names_from = "prey")
+  
+  #write.csv(hydraDataList$observedSurvDiet, file = "survvvvv.csv", row.names = T)
+  sim_data[[isim]] <- hydraDataList
 }
 
 # Save the deterministic dataset
-saveRDS(hydraDataList, "deterministic_sim_data.rds")
+saveRDS(hydraDataList, "sims/deterministic/deterministic_sim_data.rds")
 
 #### WRITE tsDat FUNCTION ####
 source("R/write_tsDatFile.R")
 source("R/read.report.R")
+nsim<-1 
 
-hydraDataList2 <- readRDS("deterministic_sim_data.rds")
+hydraDataList2 <- readRDS("sims/deterministic/deterministic_sim_data.rds")
 
 listOfParameters<-list()
 listOfParameters$outDir<-paste0(getwd(),"/","sims","/","deterministic","/")
@@ -149,11 +165,374 @@ write_tsDatFile(hydraDataList2,listOfParameters)
 ######### deterministic estimability fits
 
 library(dplyr)
+library(tidyverse)
 library(ggplot2)
+source("R/write_tsDatFile.R")
+source("R/read.report.R")
 
-#Read your deterministic outputs
+###############################
+###### PLOTS #################
+#############################
 
-# Replace with your deterministic .rep file path
+## FISHING MORTALITY OM estimate
+
+repfile_OM <- "OM_scenarios/OM/hydra_sim.rep"
+output_OM<-reptoRlist(repfile_OM)
+
+
+repfile_DET <- "sims/deterministic/hydra_sim.rep"
+output_DET<-reptoRlist(repfile_DET)
+
+stepperyr <- output_OM$Nstepsyr
+if (length(stepperyr)==0) stepperyr <- nrow(output_OM$EstBsize)/hydraDataList$Nyrs/length(hydraDataList$speciesList)
+
+nlen<-ncol(output_OM$EstBsize)
+est_SSB_OM <- output_OM$EstBsize %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=1:ncol(.), names_to = "ilen", names_prefix = "V") %>% 
+  mutate(species = rep(hydraDataList$speciesList, each = hydraDataList$Nyrs*nlen*stepperyr),
+         year  = rep(rep(1:(hydraDataList$Nyrs*stepperyr),each=nlen), length(hydraDataList$speciesList)),
+         year = (1-1/stepperyr) + year / stepperyr) %>%
+  filter(ilen == 5) 
+
+est_SSB_DET<- output_DET$EstBsize %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=1:ncol(.), names_to = "ilen", names_prefix = "V") %>% 
+  mutate(species = rep(hydraDataList$speciesList, each = hydraDataList$Nyrs*nlen*stepperyr),
+         year  = rep(rep(1:(hydraDataList$Nyrs*stepperyr),each=nlen), length(hydraDataList$speciesList)),
+         year = (1-1/stepperyr) + year / stepperyr) %>%
+  filter(ilen == 5)
+
+# Add source label
+est_SSB_OM <- est_SSB_OM %>% mutate(source = "OM")
+est_SSB_DET <- est_SSB_DET %>% mutate(source = "Deterministic")
+
+# Combine
+est_SSB_all <- bind_rows(est_SSB_OM, est_SSB_DET)
+
+# Plot
+ggplot(est_SSB_all, aes(x = year, y = value, color = source, linetype = source)) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~ species, scales = "free_y") +
+  labs(
+    title = "Spawning Stock Biomass (SSB): OM vs Deterministic",
+    x = "Year",
+    y = "SSB",
+    color = "Run",
+    linetype = "Run"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
+
+
+est_F_OM <- output_OM$Fyr %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=3:ncol(.), names_to = "year", names_prefix = "V") %>% 
+  rename(species = "V1",
+         fleet = "V2") %>% 
+  mutate(year = as.numeric(year)-2,
+         species = hydraDataList$speciesList[species])
+
+est_F_DET<- output_DET$Fyr %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=3:ncol(.), names_to = "year", names_prefix = "V") %>% 
+  rename(species = "V1",
+         fleet = "V2") %>% 
+  mutate(year = as.numeric(year)-2,
+         species = hydraDataList$speciesList[species])
+
+
+est_F_OM <- est_F_OM %>% mutate(source = "OM")
+est_F_DET <- est_F_DET %>% mutate(source = "Deterministic")
+
+# Combine into one dataframe
+F_combined <- bind_rows(est_F_OM, est_F_DET)
+F_combined <- F_combined %>%
+  filter(value > 1e-10)
+
+# Plot
+F_OM_DET<-ggplot(F_combined, aes(x = year, y = value, color = source, linetype = source)) +
+  geom_line(size = 1) +
+  facet_wrap(~ species, scales = "free_y") +
+  labs(
+    title = "Fishing Mortality: Operating Model vs Deterministic Run",
+    x = "Year",
+    y = "Fishing Mortality (F)",
+    color = "Scenario",
+    linetype = "Scenario"
+  ) +
+  theme_minimal()
+
+# Reshape to wide format: one column for each source
+F_scatter <- F_combined %>%
+  select(species, year, source, value) %>%
+  pivot_wider(names_from = source, values_from = value)
+
+# Plot OM vs Deterministic F
+ggplot(F_scatter, aes(x = OM, y = Deterministic)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray30") +
+  facet_wrap(~ species, scales = "free") +
+  labs(
+    title = "OM vs Deterministic Estimates of Fishing Mortality",
+    x = "OM Fishing Mortality (F)",
+    y = "Deterministic Fishing Mortality (F)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+#ggsave(filename = "F_OM_DET.jpeg",
+#      plot = F_OM_DET,
+#     width = 10, height = 8, units = "in", dpi = 300)
+
+
+##########################
+#### RECRUITMENT
+
+est_rec_OM <- output_OM$EstRec %>% 
+  as.data.frame() %>% 
+  mutate(species = hydraDataList$speciesList) %>% 
+  select(species, everything()) %>% 
+  pivot_longer(cols = -species, names_to = "year") %>% 
+  mutate(year = as.integer(str_remove(year, "V")),
+         log_rec = ifelse(value > 0,log(value),NA))
+
+est_rec_DET <- output_DET$EstRec %>% 
+  as.data.frame() %>% 
+  mutate(species = hydraDataList$speciesList) %>% 
+  select(species, everything()) %>% 
+  pivot_longer(cols = -species, names_to = "year") %>% 
+  mutate(year = as.integer(str_remove(year, "V")),
+         log_rec = ifelse(value > 0,log(value),NA))
+
+est_rec_OM <- est_rec_OM %>% mutate(source = "OM")
+est_rec_DET <- est_rec_DET %>% mutate(source = "Deterministic")
+
+# Combine into one dataframe
+rec_combined <- bind_rows(est_rec_OM, est_rec_DET)
+
+# Plot
+REC_OM_DET<-ggplot(rec_combined, aes(x = year, y = value, color = source, linetype = source)) +
+  geom_line(size = 1) +
+  facet_wrap(~ species, scales = "free_y") +
+  labs(
+    title = "Estimated Recruitment: Operating Model vs Deterministic Run",
+    x = "Year",
+    y = "Recruitment (R)",
+    color = "Scenario",
+    linetype = "Scenario"
+  ) +
+  theme_minimal()
+
+#ggsave(filename = "REC_OM_DET.jpeg",
+ #     plot = REC_OM_DET,
+  #   width = 10, height = 8, units = "in", dpi = 300)
+
+# Reshape to wide format: one column for each source
+rec_scatter <- rec_combined %>%
+  select(species, year, source, value) %>%
+  pivot_wider(names_from = source, values_from = value)
+
+# Plot OM vs Deterministic Recruitment
+ggplot(rec_scatter, aes(x = OM, y = Deterministic)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray30") +
+  facet_wrap(~ species, scales = "free") +
+  labs(
+    title = "OM vs Deterministic Estimates of Recruitment",
+    x = "OM Recruitment",
+    y = "Deterministic Recruitment"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+##########################
+#### SPAWNING BIOMASS
+
+# Read the full file
+lines_OM <- readLines(repfile_OM)
+lines_DET <- readLines(repfile_DET)
+
+# Find the header line
+start_line_OM <- grep("Year Species SSB", lines_OM)
+start_line_DET <- grep("Year Species SSB", lines_DET)
+
+n_rows<-(hydraDataList[["Nyrs"]]*hydraDataList[["Nspecies"]])
+
+# Read the data starting just after the header
+ssb_data_OM <- read.table(text = lines_OM[(start_line_OM + 1):(start_line_OM + n_rows)],
+                          col.names = c("Year", "Species", "SSB"))                          
+
+ssb_data_DET <- read.table(text = lines_DET[(start_line_DET + 1):(start_line_DET + n_rows)],
+                          col.names = c("Year", "Species", "SSB"))                          
+
+ssb_data_OM <- ssb_data_OM %>% mutate(Source = "OM")
+ssb_data_DET <- ssb_data_DET %>% mutate(Source = "Deterministic")
+
+# Combine both datasets
+ssb_combined <- bind_rows(ssb_data_OM, ssb_data_DET)
+ssb_combined <- ssb_combined %>%
+  mutate(Species = hydraDataList$speciesList[Species])
+# Optional: add species names
+# ssb_combined$Species <- hydraDataList$speciesList[ssb_combined$Species]
+
+# Plot
+SSB_OM_DET<-ggplot(ssb_combined, aes(x = Year, y = SSB, color = Source, linetype = Source)) +
+  geom_line(size = 1) +
+  facet_wrap(~ Species, scales = "free_y") +
+  labs(
+    title = "Spawning Stock Biomass (SSB) by Species: OM vs Deterministic",
+    x = "Year",
+    y = "SSB (units)",
+    color = "Model",
+    linetype = "Model"
+  ) +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"))
+
+#ggsave(filename = "SSB_OM_DET.jpeg",
+#     plot = SSB_OM_DET,
+#   width = 10, height = 8, units = "in", dpi = 300)
+
+
+# Reshape to wide format: one column for each source
+ssb_scatter <- ssb_combined %>%
+  select(Species, Year, Source, SSB) %>%
+  pivot_wider(names_from = Source, values_from = SSB)
+
+# Plot OM vs Deterministic SSB
+ggplot(ssb_scatter, aes(x = OM, y = Deterministic)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray30") +
+  facet_wrap(~ Species, scales = "free") +
+  labs(
+    title = "OM vs Deterministic Estimates of Spawning Stock Biomass (SSB)",
+    x = "OM SSB",
+    y = "Deterministic SSB"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+#########################
+####### depletion
+#########################
+
+ssb_status <- ssb_combined %>%
+  group_by(Species, Source) %>%
+  summarize(
+    SSB_first = round(SSB[Year == min(Year)], 2),
+    SSB_last = round(SSB[Year == max(Year)], 2),
+    Status = round(SSB_last / SSB_first, 3),
+    .groups = "drop"
+  )
+
+
+ssb_summary <- ssb_combined %>%
+  pivot_wider(names_from = Source, values_from = SSB) %>%
+  group_by(Species) %>%
+  summarize(
+    MeanDiff = mean(Deterministic - OM, na.rm = TRUE),
+    RelBias  = mean((Deterministic - OM) / OM, na.rm = TRUE) * 100,
+    RMSE     = sqrt(mean((Deterministic - OM)^2, na.rm = TRUE)),
+    Correlation = cor(OM, Deterministic, use = "complete.obs")
+  )
+
+
+#MeanDiff: raw difference across years
+#RelBias: average % over- or under-estimation
+#RMSE: error magnitude
+#Correlation: shape similarity over time
+
+
+# Function to read a .par file with vector-style parameter blocks
+source("R/read_par.R")
+
+# Read both .par files
+par_OM <- read_par_blocked("OM_scenarios/OM/hydra_sim.par")
+par_DET <- read_par_blocked("sims/deterministic/hydra_sim.par")
+
+# Compare shared parameters
+#common_params <- intersect(names(par_OM), names(par_DET))
+# Choose only specific parameters to compare
+selected_params <- c("ln_yr1N", "ln_avg_recruitment", "recruitment_devs", "avg_F", "fishsel_pars", "ln_fishery_q", "survey_selpars")  # add any others here
+common_params <- intersect(selected_params, intersect(names(par_OM), names(par_DET)))
+
+param_comparison <- purrr::map_dfr(common_params, function(pname) {
+  x <- par_OM[[pname]]
+  y <- par_DET[[pname]]
+  
+  # Ensure matching length
+  len <- min(length(x), length(y))
+  x <- x[1:len]
+  y <- y[1:len]
+  
+  tibble(
+    Parameter = pname,
+    Index = seq_len(len),
+    OM = x,
+    DET = y,
+    Diff = y - x,
+    RelError = (y - x) / x * 100
+  )
+})
+
+# Summary by parameter
+param_summary <- param_comparison %>%
+  group_by(Parameter) %>%
+  summarize(
+    N = n(),
+    MeanDiff = mean(Diff),
+    MeanRelError = mean(RelError, na.rm = TRUE),
+    RMSE = sqrt(mean((Diff)^2)),
+    .groups = "drop"
+  )
+
+# Output example
+knitr::kable(head(param_summary, 10), digits = 4, caption = "Parameter Error Summary (first 10)")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Read deterministic outputs
+
+# Replace with deterministic .rep file path
 repfile_det <- "sims/deterministic/hydra_sim.rep"  # Example: first simulation
 OMrepfile <- "OM_scenarios/OM/hydra_sim.rep" # Original Operating Model .rep
 
@@ -245,14 +624,14 @@ survey_plot <- survey_comp %>%
     legend.text = element_text(size = 9)
   )
 # --- Save Catch Plot ---
-ggsave(filename = "Deterministic_Catch.jpeg",
-       plot = catch_plot,
-       width = 10, height = 8, units = "in", dpi = 300)
+#ggsave(filename = "Deterministic_Catch.jpeg",
+#      plot = catch_plot,
+#     width = 10, height = 8, units = "in", dpi = 300)
 
 # --- Save Survey Biomass Plot ---
-ggsave(filename = "Deterministic_Biomass.jpeg",
-       plot = survey_plot,
-       width = 10, height = 8, units = "in", dpi = 300)
+#ggsave(filename = "Deterministic_Biomass.jpeg",
+#      plot = survey_plot,
+#     width = 10, height = 8, units = "in", dpi = 300)
 
 
 # Quick Metrics

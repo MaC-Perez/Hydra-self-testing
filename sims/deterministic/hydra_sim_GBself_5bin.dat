@@ -18,7 +18,7 @@
 # init_number wtconv 
   1
 ## Time series data file
- hydra_sim1-ts.dat
+ hydra_sim_deterministic1-ts.dat
 #
 # List of Species in Model
 # Atlantic_cod

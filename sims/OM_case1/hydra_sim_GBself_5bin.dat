@@ -18,7 +18,7 @@
 # init_number wtconv 
   1
 ## Time series data file
- hydra_sim_GBself_5bin-ts.dat
+ hydra_GBself_5bin_simdata-ts.dat
 #
 # List of Species in Model
 # Atlantic_cod
@@ -250,7 +250,7 @@
 #  init_int sqphase              //survey q estimation phase
   1
 # init_int ssphase               //survey selectivity estimation phase
-  2
+  -2
 # init_int ssig_phase           //survey sigma (obs error) phase
   -1
 # init_int csig_phase           //catch sigma (obs error) phase
