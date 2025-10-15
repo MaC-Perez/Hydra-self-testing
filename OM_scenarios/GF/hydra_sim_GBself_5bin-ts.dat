@@ -351,7 +351,7 @@
 # Number of observations, init_int Ncatch_obs
   168
 # init_matrix obs_catch_biomass(1,Ncatch_obs,1,6) 
-# Fleet	Area	Year	Species	Catch(biomass t)	CV 
+# Fleet Area  Year  Species Catch(biomass t)  CV 
 1 1 1 1 17350.02562 0.2
 1 1 2 1 17853.05828 0.2
 1 1 3 1 24001.14826 0.2

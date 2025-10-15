@@ -2,7 +2,7 @@
       #and used all inputs from csv files found in folder:
       #hydradata/data-raw
 # init_int debug
-  1
+  4
 # init_int Nyrs
   42
 # init_int Nspecies
@@ -18,7 +18,7 @@
 # init_number wtconv
   0.001
 ## Time series data file
- OM_scenarios/mod_test_11/hydra_sim_GBself_5bin-ts.dat
+ hydra_sim_GBself_5bin-ts.dat
 #
 # List of Species in Model
 # Atlantic_cod
