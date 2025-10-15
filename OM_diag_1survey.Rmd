@@ -34,8 +34,8 @@ hydraDataList[["observedSurvDiet"]] <- hydraDataList[["observedSurvDiet"]] %>%
 
 
 #READ FITS FROM SARAHS DATA SETS
-repfile <- "OM_scenarios/OM/hydra_sim.rep"
-#repfile <- "sims/deterministic/hydra_sim.rep"
+#repfile <- "OM_scenarios/OM_case1/hydra_sim.rep"
+repfile <- "sims/deterministic/hydra_sim.rep"
 output<-reptoRlist(repfile)
 
 #### READ CATCH AND SURVEY OBSERVED BIOMASS ####
