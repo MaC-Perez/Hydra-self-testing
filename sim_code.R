@@ -36,12 +36,18 @@ sigma_from_cv <- function(cv) sqrt(log1p(cv^2))
 simulate_multinom_block <- function(df_block, N, prob_col, cat_col) {
   df_block <- df_block %>% arrange(.data[[cat_col]])
   p <- df_block[[prob_col]]
-  if (sum(p, na.rm = TRUE) > 0) {
-    p <- p / sum(p, na.rm = TRUE)
-  } else {
-    p[] <- 0
+  
+  if (any(is.na(p))) {
+    stop("NA values found in multinomial probability vector.")
   }
+  
+  if (sum(p) <= 0) {
+    stop("A multinomial group has zero total predicted probability.")
+  }
+  
+  p <- p / sum(p)
   counts <- as.vector(rmultinom(1, size = N, prob = p))
+  
   df_block %>%
     mutate(sim_count = counts,
            simulated_prop = sim_count / N)
@@ -84,6 +90,20 @@ hydraDataList0 <- hydraDataList
 
 repfile <- "OM_scenarios/OM_base/hydra_sim.rep"
 output  <- reptoRlist(repfile)
+
+# Require OM-predicted composition vectors
+required_outputs <- c("pred_catch_size", "pred_survey_size", "pred_dietprop")
+missing_outputs <- required_outputs[!required_outputs %in% names(output)]
+
+# stop script immediately if one of those OM prediction objects is missing.
+if (length(missing_outputs) > 0) {
+  stop(
+    paste0(
+      "Missing required OM prediction object(s) in .rep file: ",
+      paste(missing_outputs, collapse = ", ")
+    )
+  )
+}
 
 # Observed frames (original)
 obs_surveyB <- hydraDataList$observedBiomass %>% filter(survey == 1)
@@ -129,15 +149,19 @@ for (isim in seq_len(nsim)) {
   # Long table in deterministic order: fishery, area, year, species, type, lenbin
   obs_catch_size_long <- hydraDataList$observedCatchSize %>%
     tibble() %>%
-    arrange(fishery, area, year, species, type) %>%
     pivot_longer(cols = starts_with("sizebin"),
                  names_to = "lenbin", values_to = "value") %>%
     mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-           label  = "catch")
+           label  = "catch") %>%
+    arrange(fishery, area, year, species, type, lenbin)
   
   # Replace with OM predicted probs if provided
   pred_catch_size <- as.numeric(output$pred_catch_size)
-  stopifnot(length(pred_catch_size) == nrow(obs_catch_size_long))
+  
+  if (length(pred_catch_size) != nrow(obs_catch_size_long)) {
+    stop("Length mismatch: output$pred_catch_size does not match catch size table rows.")
+  }
+  
   obs_catch_size_long <- obs_catch_size_long %>%
     mutate(value = pmax(pred_catch_size, 0))
   
@@ -156,37 +180,73 @@ for (isim in seq_len(nsim)) {
                 names_prefix = "sizebin") %>%
     arrange(fishery, species, year, type)
   
-  ## 4) Survey size composition (from OM probs if available; survey==1)
-  obs_survey_size_long <- hydraDataList$observedSurvSize %>%
-    filter(survey == 1) %>%
-    tibble() %>%
-    arrange(survey, species, year) %>%
-    pivot_longer(cols = starts_with("sizebin"),
-                 names_to = "lenbin", values_to = "value") %>%
-    mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-           label  = "survey")
+  check_catch_pred <- obs_catch_size_long %>%
+    group_by(fishery, area, year, species, type) %>%
+    summarise(sum_pred = sum(value), .groups = "drop")
   
-  if (!is.null(output$pred_survey_size)) {
-    pred_surv_size <- as.numeric(output$pred_survey_size)
-    stopifnot(length(pred_surv_size) == nrow(obs_survey_size_long))
-    obs_survey_size_long <- obs_survey_size_long %>%
-      mutate(value = pmax(pred_surv_size, 0))
+  if (max(abs(check_catch_pred$sum_pred - 1)) > 1e-5) {
+    stop("Catch size OM predictions do not sum to 1 within groups.")
+  }
+  
+  ## 4) Survey size composition (from OM probs if available; survey==1)
+ 
+  obs_survey_size_long <- hydraDataList$observedSurvSize %>%
+    tibble() %>%
+    pivot_longer(
+      cols = starts_with("sizebin"),
+      names_to = "lenbin",
+      values_to = "value"
+    ) %>%
+    mutate(
+      lenbin = as.integer(str_remove(lenbin, "sizebin")),
+      label = "survey"
+    ) %>%
+    arrange(survey, species, year, lenbin)
+  
+  pred_surv_size <- as.numeric(output$pred_survey_size)
+  
+  if (length(pred_surv_size) != nrow(obs_survey_size_long)) {
+    stop("Length mismatch: output$pred_surv_size does not match survey size table rows.")
+  }
+  
+  obs_survey_size_long <- obs_survey_size_long %>%
+    mutate(value = pmax(pred_surv_size, 0)) %>%
+    group_by(survey, species, year) %>%
+    mutate(group_sum = sum(value)) %>%
+    ungroup()
+  
+  bad_zero_groups <- obs_survey_size_long %>%
+    distinct(survey, species, year, group_sum) %>%
+    filter(group_sum <= 0)
+  
+  if (nrow(bad_zero_groups) > 0) {
+    print(bad_zero_groups)
+    stop("Some survey size groups have zero total probability after truncation.")
+  }
+  
+  obs_survey_size_long <- obs_survey_size_long %>%
+    mutate(value = value / group_sum) %>%
+    select(-group_sum)
+  
+  check_surv_pred <- obs_survey_size_long %>%
+    group_by(survey, species, year) %>%
+    summarise(sum_pred = sum(value), .groups = "drop")
+  
+  if (max(abs(check_surv_pred$sum_pred - 1)) > 1e-5) {
+    print(check_surv_pred %>% filter(abs(sum_pred - 1) > 1e-5))
+    stop("Survey size OM predictions do not sum to 1 within groups.")
   }
   
   obs_survey_size_long <- obs_survey_size_long %>%
     group_by(survey, species, year) %>%
-    group_modify(~ simulate_multinom_block(.x, N = N_survey_size,
-                                           prob_col = "value",
-                                           cat_col  = "lenbin")) %>%
+    group_modify(~ simulate_multinom_block(
+      .x, N = N_survey_size,
+      prob_col = "value",
+      cat_col = "lenbin"
+    )) %>%
     ungroup()
   
-  hydraDataList$observedSurvSize <- obs_survey_size_long %>%
-    transmute(survey, species, year, lenbin,
-              inpN = N_survey_size, value = simulated_prop) %>%
-    pivot_wider(names_from = lenbin, values_from = value,
-                names_prefix = "sizebin") %>%
-    arrange(survey, species, year)
-  
+
   ## 5) Diet composition (combine surveys by sample-size; then draw)
   # Replace prey NAs only with 0; keep rows (no dropping)
   obsdiet_comp <- hydraDataList$observedSurvDiet %>%
@@ -217,11 +277,14 @@ for (isim in seq_len(nsim)) {
     arrange(survey, species, year, sizebin, prey)
   
   # If OM diet probs are available, override with predicted vector
-  if (!is.null(output$pred_dietprop)) {
-    pred_diet <- as.numeric(output$pred_dietprop)
-    stopifnot(length(pred_diet) == nrow(obsdiet_long))
-    obsdiet_long <- obsdiet_long %>% mutate(value = pmax(pred_diet, 0))
+  pred_diet <- as.numeric(output$pred_dietprop)
+  
+  if (length(pred_diet) != nrow(obsdiet_long)) {
+    stop("Length mismatch: output$pred_dietprop does not match diet table rows.")
   }
+  
+  obsdiet_long <- obsdiet_long %>%
+    mutate(value = pmax(pred_diet, 0))
   
   # Draw multinomial per (species,year,sizebin)
   obsdiet_long <- obsdiet_long %>%
@@ -236,6 +299,15 @@ for (isim in seq_len(nsim)) {
               inpN = N_diet, value = simulated_prop) %>%
     pivot_wider(names_from = "prey", values_from = "value") %>%
     arrange(survey, species, year, sizebin)
+  
+  check_diet_pred <- obsdiet_long %>%
+    group_by(survey, species, year, sizebin) %>%
+    summarise(sum_pred = sum(value), .groups = "drop")
+  
+  if (max(abs(check_diet_pred$sum_pred - 1)) > 1e-6) {
+    stop("Diet OM predictions do not sum to 1 within groups.")
+  }
+  
   
   ## --- VALIDATION ------------------------------------------------------------
   # 1) No NAs
