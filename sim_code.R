@@ -23,207 +23,260 @@ hydraDataList$Ndietprop_obs<-(Ndietprop_obs=89)
 hydraDataList[["observedBiomass"]][["cv"]]<-(cv=0.2)
 hydraDataList[["observedCatch"]][["cv"]]<-(cv=0.05)
 
-repfile <- "OM_scenarios/OM_case1/hydra_sim.rep"
-output<-reptoRlist(repfile)
+## --- Packages & helpers ------------------------------------------------------
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(stringr)
+})
 
-#### READ CATCH AND SURVEY OBSERVED BIOMASS ####
-# 2 surveys use this line 
-#obs_surveyB <- hydraDataList$observedBiomass
-# 1 survey use this line
-obs_surveyB <- hydraDataList$observedBiomass %>% 
-  filter(survey==1)
-obs_catchB <- hydraDataList$observedCatch
+# Mean-preserving lognormal sigma from CV
+sigma_from_cv <- function(cv) sqrt(log1p(cv^2))
 
-biorows <- dim(obs_surveyB)[1]
-catchrows <- dim(obs_catchB)[1]
+# Multinomial simulator for a single grouped block (order-safe)
+simulate_multinom_block <- function(df_block, N, prob_col, cat_col) {
+  df_block <- df_block %>% arrange(.data[[cat_col]])
+  p <- df_block[[prob_col]]
+  if (sum(p, na.rm = TRUE) > 0) {
+    p <- p / sum(p, na.rm = TRUE)
+  } else {
+    p[] <- 0
+  }
+  counts <- as.vector(rmultinom(1, size = N, prob = p))
+  df_block %>%
+    mutate(sim_count = counts,
+           simulated_prop = sim_count / N)
+}
 
-#create a table with estimated and observed values
+# Composition-sum checks
+check_sum1_size <- function(df, group_vars, prefix = "sizebin", tol = 1e-8) {
+  df %>%
+    pivot_longer(starts_with(prefix), names_to = "bin", values_to = "p") %>%
+    group_by(across(all_of(group_vars))) %>%
+    summarise(s = sum(p), .groups = "drop") %>%
+    summarise(max_dev = max(abs(s - 1))) %>%
+    pull(max_dev) %>%
+    { stopifnot(. < tol) }
+}
+
+check_sum1_diet <- function(df, prey_cols, tol = 1e-8) {
+  df %>%
+    pivot_longer(all_of(prey_cols), names_to = "prey", values_to = "p") %>%
+    group_by(survey, species, year, sizebin) %>%
+    summarise(s = sum(p), .groups = "drop") %>%
+    { stopifnot(max(abs(.$s - 1)) < tol) }
+}
+
+## --- Assumptions (FIXED CVs & FIXED SAMPLE SIZES) ----------------------------
+# Fixed CVs for biomass & catch (applied to ALL rows)
+cv_bio   <- 0.20
+cv_catch <- 0.05
+sigma_bio   <- sigma_from_cv(cv_bio)
+sigma_catch <- sigma_from_cv(cv_catch)
+
+# Fixed sample sizes for compositions (applied to ALL groups)
+N_catch_size  <- 100   # catch length comps
+N_survey_size <- 100   # survey length comps
+N_diet        <- 100   # diet proportions
+
+## --- Inputs ------------------------------------------------------------------
+# Keep a pristine copy to reset each iteration
+hydraDataList0 <- hydraDataList
+
+repfile <- "OM_scenarios/OM_base/hydra_sim.rep"
+output  <- reptoRlist(repfile)
+
+# Observed frames (original)
+obs_surveyB <- hydraDataList$observedBiomass %>% filter(survey == 1)
+obs_catchB  <- hydraDataList$observedCatch
+
+# Row counts for gettables()
+biorows   <- nrow(obs_surveyB)
+catchrows <- nrow(obs_catchB)
+
+# Estimated & observed tables (your helper)
 indexfits <- gettables(repfile, biorows, catchrows)
 
-# select survey biomass
-biomass<-indexfits[[1]] %>%
-  mutate(species = hydraDataList$speciesList[species])
-# select catch
-catch<-indexfits[[2]]%>%
-  mutate(species = hydraDataList$speciesList[species])
+# Diet prey columns
+prey_cols <- c("Atlantic_cod","Atlantic_herring","Atlantic_mackerel",
+               "Spiny_dogfish","allotherprey")
 
-# create simulation object
+# Simulation controls
 set.seed(23)
-sim_data <- NULL
-#isim <- 1
+nsim <- 100
+sim_data <- vector("list", nsim)
 
-### DEFINE COMPS SAMPLE SIZE 
-sample_size<-25
-
-for (isim in 1:100) {  
+## --- Simulation loop ---------------------------------------------------------
+for (isim in seq_len(nsim)) {
   
-  # replace index with simulated data
+  # Reset list each loop
+  hydraDataList <- hydraDataList0
   
-  ##### SIMULATE CATCH DATA ######
+  ## 1) Catch biomass (lognormal, mean-preserving; fixed CV)
+  mu_c <- indexfits[[2]]$pred_catch
   hydraDataList$observedCatch <- obs_catchB %>%
-    mutate(catch = rnorm(nrow(.), log(indexfits[[2]]$pred_catch),hydraDataList[["observedCatch"]][["cv"]])) # sd=0.000001
+    mutate(catch = ifelse(mu_c > 0,
+                          mu_c * exp(rnorm(n(), 0, sigma_catch) - 0.5 * sigma_catch^2),
+                          0))
   
-  ##### SIMULATE SURVEY BIOMASS DATA ######
-  # if you have one survey
+  ## 2) Survey biomass (lognormal, mean-preserving; fixed CV) — survey 1 only
+  mu_b <- indexfits[[1]]$pred_bio
   hydraDataList$observedBiomass <- obs_surveyB %>%
-    mutate(biomass = rnorm(nrow(.), log(indexfits[[1]]$pred_bio),hydraDataList[["observedBiomass"]][["cv"]])) # sd=0.000001
-  # store simulated object
-
-  #### SIMULATE CATCH SIZE COMPOSITION DATA ####
+    mutate(biomass = ifelse(mu_b > 0,
+                            mu_b * exp(rnorm(n(), 0, sigma_bio) - 0.5 * sigma_bio^2),
+                            0))
   
-  obs_catch <- hydraDataList$observedCatchSize %>% tibble()
-  obs_catch<-obs_catch %>% pivot_longer(cols=7:ncol(.), names_to = "lenbin") %>%
+  ## 3) Catch size composition (from OM probs; one draw per group)
+  # Long table in deterministic order: fishery, area, year, species, type, lenbin
+  obs_catch_size_long <- hydraDataList$observedCatchSize %>%
+    tibble() %>%
+    arrange(fishery, area, year, species, type) %>%
+    pivot_longer(cols = starts_with("sizebin"),
+                 names_to = "lenbin", values_to = "value") %>%
     mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-           label = rep("catch",nrow(.)))# %>% filter(value != -999)
-  obs_catch$value[which(obs_catch$value == -999)] = 0.00001
+           label  = "catch")
   
-  simulated_props <- obs_catch %>%
-    group_by(species, year) %>%
-    # Normalize value to ensure it sums to 1 for each species-year
-    mutate(norm_value = value / sum(value)) %>%
-    summarise(
-      lenbin = lenbin,
-      sim_matrix = rmultinom(1, size = sample_size, prob = norm_value),  # returns matrix
-      .groups = "drop"
-    ) %>%
-    mutate(sim_count = as.vector(sim_matrix)) %>%
-    select(species, year, lenbin, sim_count) %>%
-    mutate(simulated_prop = sim_count / sample_size)
+  # Replace with OM predicted probs if provided
+  pred_catch_size <- as.numeric(output$pred_catch_size)
+  stopifnot(length(pred_catch_size) == nrow(obs_catch_size_long))
+  obs_catch_size_long <- obs_catch_size_long %>%
+    mutate(value = pmax(pred_catch_size, 0))
   
+  # Draw multinomial per group (fix order by lenbin)
+  obs_catch_size_long <- obs_catch_size_long %>%
+    group_by(fishery, area, year, species, type) %>%
+    group_modify(~ simulate_multinom_block(.x, N = N_catch_size,
+                                           prob_col = "value",
+                                           cat_col  = "lenbin")) %>%
+    ungroup()
   
-  # Reasignar valores simulados
-  obs_catch$value <- simulated_props$simulated_prop
-  obs_catch$inpN  <- sample_size
-  #obs_count$count  <- simulated_props$sim_count 
-  
-  # Convertir de vuelta a formato ancho
-  hydraDataList$observedCatchSize <- obs_catch %>%
+  hydraDataList$observedCatchSize <- obs_catch_size_long %>%
+    transmute(fishery, area, year, species, type, lenbin,
+              inpN = N_catch_size, value = simulated_prop) %>%
     pivot_wider(names_from = lenbin, values_from = value,
                 names_prefix = "sizebin") %>%
-    mutate(inpN = sample_size) %>% 
-    arrange(fishery, species, year) %>%
-    select(-label)
+    arrange(fishery, species, year, type)
   
-  #to check if I am getting the correct values
-  #write.csv(surv_size, file = "surv_size.csv", row.names = T)
-  
-#### SIMULATE SURVEY SIZE COMPOSITION DATA ####
-# remove  %>% filter(survey==1) if you have 2 surveys
- 
-  obs_survey <- hydraDataList$observedSurvSize  %>% filter(survey == 1)  %>% tibble()
-  obs_survey <- obs_survey %>% pivot_longer(cols=6:ncol(.), names_to = "lenbin") %>% #filter(value != -999)%>%
-    
-    mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
-           label = rep("survey",nrow(.)))
-  obs_survey$value[which(obs_survey$value == -999)] = 0.00001
-  
-  simulated_props <- obs_survey %>%
-    group_by(species, year) %>%
-    # Normalize value to ensure it sums to 1 for each species-year
-    mutate(norm_value = value / sum(value)) %>%
-    summarise(
-      lenbin = lenbin,
-      sim_matrix = rmultinom(1, size = sample_size, prob = norm_value),  # returns matrix
-      .groups = "drop"
-    ) %>%
-    mutate(sim_count = as.vector(sim_matrix)) %>%
-    select(species, year, lenbin, sim_count) %>%
-    mutate(simulated_prop = sim_count / sample_size)
-  
-  
-  # Reasignar valores simulados
-  obs_survey$value <- simulated_props$simulated_prop
-  obs_survey$inpN  <- sample_size
-  #obs_survey$count  <- simulated_props$sim_count 
-  
-  # Convertir de vuelta a formato ancho
-  hydraDataList$observedSurvSize <- obs_survey %>%
-    pivot_wider(names_from = lenbin, values_from = value,
-                names_prefix = "sizebin") %>%
-    mutate(inpN = sample_size) %>% 
+  ## 4) Survey size composition (from OM probs if available; survey==1)
+  obs_survey_size_long <- hydraDataList$observedSurvSize %>%
+    filter(survey == 1) %>%
+    tibble() %>%
     arrange(survey, species, year) %>%
-    select(-label)
+    pivot_longer(cols = starts_with("sizebin"),
+                 names_to = "lenbin", values_to = "value") %>%
+    mutate(lenbin = as.integer(str_remove(lenbin, "sizebin")),
+           label  = "survey")
   
-  #to check if I am getting the correct values
-  #write.csv(surv_size, file = "surv_size.csv", row.names = T)
+  if (!is.null(output$pred_survey_size)) {
+    pred_surv_size <- as.numeric(output$pred_survey_size)
+    stopifnot(length(pred_surv_size) == nrow(obs_survey_size_long))
+    obs_survey_size_long <- obs_survey_size_long %>%
+      mutate(value = pmax(pred_surv_size, 0))
+  }
   
-#### SIMULATE DIET COMPOSITION DATA ####
-  ### for diet data I am suing both survey so if I have 100 for sample size in both survey i can just sum both
+  obs_survey_size_long <- obs_survey_size_long %>%
+    group_by(survey, species, year) %>%
+    group_modify(~ simulate_multinom_block(.x, N = N_survey_size,
+                                           prob_col = "value",
+                                           cat_col  = "lenbin")) %>%
+    ungroup()
   
-  obsdiet_comp <- hydraDataList$observedSurvDiet %>% tibble()
+  hydraDataList$observedSurvSize <- obs_survey_size_long %>%
+    transmute(survey, species, year, lenbin,
+              inpN = N_survey_size, value = simulated_prop) %>%
+    pivot_wider(names_from = lenbin, values_from = value,
+                names_prefix = "sizebin") %>%
+    arrange(survey, species, year)
+  
+  ## 5) Diet composition (combine surveys by sample-size; then draw)
+  # Replace prey NAs only with 0; keep rows (no dropping)
+  obsdiet_comp <- hydraDataList$observedSurvDiet %>%
+    tibble() %>%
+    mutate(across(all_of(prey_cols), ~ replace_na(.x, 0)),
+           inpN = replace_na(inpN, 0L))
+  
+  # Weighted by inpN across surveys; keep deterministic order
   diet_combined <- obsdiet_comp %>%
     group_by(year, species, sizebin) %>%
-    mutate(w = inpN) %>%
     summarise(
-      InpN = sum(w),
-      across(c(Atlantic_cod, Atlantic_herring, Atlantic_mackerel, Spiny_dogfish, allotherprey),
-             ~ weighted.mean(.x, w, na.rm = TRUE)),
+      totalN = sum(inpN, na.rm = TRUE),
+      across(all_of(prey_cols),
+             ~ sum(.x * inpN, na.rm = TRUE),
+             .names = "w_{.col}"),
       .groups = "drop"
     ) %>%
-    mutate(survey = 1) %>%
-    relocate(survey, .before = year)   # put survey back in the first column
+    mutate(across(starts_with("w_"),
+                  ~ ifelse(totalN > 0, .x / totalN, 0))) %>%
+    rename_with(~ sub("^w_", "", .x), starts_with("w_")) %>%
+    mutate(survey = 1L, inpN = totalN) %>%
+    select(survey, year, species, sizebin, inpN, all_of(prey_cols)) %>%
+    arrange(survey, species, year, sizebin)
   
-  colnames(diet_combined) <- c("survey", "year", "species", "sizebin",
-                               "inpN", "Atlantic_cod", "Atlantic_herring", 
-                               "Atlantic_mackerel", "Spiny_dogfish", "allotherprey")
+  # Long order matches .rep: survey, species, year, sizebin, prey
+  obsdiet_long <- diet_combined %>%
+    pivot_longer(all_of(prey_cols), names_to = "prey", values_to = "value") %>%
+    arrange(survey, species, year, sizebin, prey)
   
-  obsdiet_comp <- diet_combined %>%
-    pivot_longer(
-      cols = c(Atlantic_cod, Atlantic_herring, Atlantic_mackerel, Spiny_dogfish, allotherprey),
-      names_to = "prey",
-      values_to = "value"
-    ) %>%
-    mutate(
-      value = ifelse(value == -999, 0.000001, value)
-    )
+  # If OM diet probs are available, override with predicted vector
+  if (!is.null(output$pred_dietprop)) {
+    pred_diet <- as.numeric(output$pred_dietprop)
+    stopifnot(length(pred_diet) == nrow(obsdiet_long))
+    obsdiet_long <- obsdiet_long %>% mutate(value = pmax(pred_diet, 0))
+  }
   
-  simulated_diet <- obsdiet_comp %>%
+  # Draw multinomial per (species,year,sizebin)
+  obsdiet_long <- obsdiet_long %>%
     group_by(species, year, sizebin) %>%
-    mutate(
-      norm_value = value / sum(value)  # in case values don’t sum exactly to 1
-    ) %>%
-    summarise(
-      prey = prey,
-      sim_matrix = rmultinom(1, size = sample_size, prob = norm_value),
-      .groups = "drop"
-    ) %>%
-    mutate(
-      sim_count = as.vector(sim_matrix),
-      simulated_prop = sim_count / sample_size
-    ) %>%
-    select(species, year, sizebin, prey, simulated_prop)
+    group_modify(~ simulate_multinom_block(.x, N = N_diet,
+                                           prob_col = "value",
+                                           cat_col  = "prey")) %>%
+    ungroup()
   
+  hydraDataList$observedSurvDiet <- obsdiet_long %>%
+    transmute(survey, year, species, sizebin, prey,
+              inpN = N_diet, value = simulated_prop) %>%
+    pivot_wider(names_from = "prey", values_from = "value") %>%
+    arrange(survey, species, year, sizebin)
   
-  obsdiet_comp$value = simulated_diet$simulated_prop
-  hydraDataList$observedSurvDiet <- obsdiet_comp %>%
-    mutate(inpN = 25) %>%
-    pivot_wider(names_from = "prey")
+  ## --- VALIDATION ------------------------------------------------------------
+  # 1) No NAs
+  stopifnot(!anyNA(hydraDataList$observedCatch$catch))
+  stopifnot(!anyNA(hydraDataList$observedBiomass$biomass))
+  stopifnot(!anyNA(hydraDataList$observedCatchSize))
+  stopifnot(!anyNA(hydraDataList$observedSurvSize))
+  stopifnot(!anyNA(hydraDataList$observedSurvDiet))
   
-  #write.csv(hydraDataList$observedSurvDiet, file = "survvvvv.csv", row.names = T)
+  # 2) Compositions sum to 1 within groups
+  check_sum1_size(hydraDataList$observedCatchSize,
+                  c("fishery","area","year","species","type"),
+                  prefix = "sizebin")
+  check_sum1_size(hydraDataList$observedSurvSize %>% filter(survey==1),
+                  c("survey","species","year"),
+                  prefix = "sizebin")
+  check_sum1_diet(hydraDataList$observedSurvDiet, prey_cols)
+  
+  # 3) Sample sizes are fixed as intended
+  stopifnot(all(hydraDataList$observedCatchSize$inpN == N_catch_size))
+  stopifnot(all(hydraDataList$observedSurvSize$inpN  == N_survey_size))
+  stopifnot(all(hydraDataList$observedSurvDiet$inpN  == N_diet))
+  
+  # Store simulated object
   sim_data[[isim]] <- hydraDataList
 }
 
-# change simulated catch and survey biomass data from log scale to the original scale 
-for (isim in 1:100) {  
-  
-  sim_data[[isim]][["observedBiomass"]][["biomass"]]<-exp(sim_data[[isim]][["observedBiomass"]][["biomass"]])
-  sim_data[[isim]][["observedCatch"]][["catch"]]<-exp(sim_data[[isim]][["observedCatch"]][["catch"]])
-  
-  }
+## --- Optional: save simulations bundle ---------------------------------------
+ saveRDS(sim_data, file = "sims/base/sim_data.rds")
 
-# save the simulated data object 
-#write_rds(sim_data, "sims/OM_case1/sim_data_OM.rds")
 
 #### WRITE tsDat FUNCTION ####
 source("R/write_tsDatFile.R")
 source("R/read.report.R")
 
 #read original observations (hydraDataList) and simulated data sets (hydraDataList2)
-hydraDataList2 <- readRDS("sims/OM_case1/sim_data_OM.rds")
+hydraDataList2 <- readRDS("sims/base/sim_data.rds")
 
 
 listOfParameters<-list()
-listOfParameters$outDir<-paste0(getwd(),"/","sims","/")
+listOfParameters$outDir<-paste0(getwd(),"/","sims","/","base","/")
 listOfParameters$outputFilename<-"hydra_sim"
 listOfParameters$fillLength <- 2000
 
@@ -243,16 +296,16 @@ for (nsim in 1:100) {
 }
 
 
-for (nsim in 1:100){ 
-  write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
-}
+#for (nsim in 1:100){ 
+#  write_tsDatFile(hydraDataList2[[nsim]],listOfParameters)
+#}
 
 
 #### RUN THE MODEL WITH 100 SIMS ####
 library(here)
 dir<-here()
 #dir<-paste0(dir,"/","sims","/","initial")
-dir<-paste0(dir,"/","sims","/","OM_case1")
+dir<-paste0(dir,"/","sims","/","base")
 
 setwd(dir)
 
@@ -261,16 +314,16 @@ setwd(dir)
 #isim<-1
 #system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
 #file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
-#nsim <- 100 
+#nsim<-1
 
-for (nsim in 1:100) ### DO NOT FORGET TO CHANGE THE NAME OF THE FILE hydra_sim_GBself_5bin-ts.dat FOR hydra_GBself_5bin_simdata-ts.dat
+for (nsim in 1:100)
 {
   file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
   system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
   file.copy(from = "hydra_sim.rep", to = paste0("rep/hydra_sim",nsim,".rep"))
   file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
-  file.copy(from = "hydra_sim.cor", to = paste0("cor/hydra_sim",nsim,".cor"))
-  file.copy(from = "hydra_sim.std", to = paste0("std/hydra_sim",nsim,".std"))
+  file.copy(from = "HYDRA_~1.cor", to = paste0("cor/hydra_sim",nsim,".cor"))
+  file.copy(from = "HYDRA_~1.std", to = paste0("std/hydra_sim",nsim,".std"))
   file.copy(from = "pmse_predvals.out", to = paste0("out/pmse_predvals",nsim,".out"))
 }
 
@@ -283,6 +336,7 @@ source("R/gettables.R")
 library(tidyverse)
 
 hydraDataList <- readRDS("Sarah_files/hydra_sim_GBself_5bin.rds")
+hydraDataList <- readRDS("sims/hydra_sim_GBself_5bin_combined.rds")
 obs_surveyB <- hydraDataList$observedBiomass %>% 
   filter(survey == 1)
 
@@ -292,7 +346,7 @@ biorows <- dim(obs_surveyB)[1]
 catchrows <- dim(obs_catchB)[1]
 
 #READ FITS FROM OM
-OMrepfile <- "OM_scenarios/OM/hydra_sim.rep"
+OMrepfile <- "OM_scenarios/OM_low/hydra_sim.rep"
 OMoutput<-reptoRlist(OMrepfile)
 
 #pred_catch and pred_bio are my estimated values from the OM 
@@ -301,7 +355,7 @@ OM_catch <- indexfits[[2]]
 OM_survey <- indexfits[[1]]
 
 #READ FITS FROM RUNS WITH 100 DATA SETS
-rep_files_sim <- paste0("sims/OM/rep/hydra_sim", 1:100, ".rep")
+rep_files_sim <- paste0("sims/low/rep/hydra_sim", 1:100, ".rep")
 #repfile <- "inputs/initial_run/hydra_sim.rep"
 
 # Read all rep files into a named list
@@ -364,9 +418,9 @@ OM_EMest_catch<-ggplot() +
 
 print(OM_EMest_catch)
 
-#ggsave("OM_EMest_catch.jpeg",
- #            plot = OM_EMest_catch,
-  #          width = 10, height = 8, units = "in", dpi = 300)
+ggsave("sims/low/plots/OM_EMest_catch.jpeg",
+            plot = OM_EMest_catch,
+          width = 10, height = 8, units = "in", dpi = 300)
 
 
 #############
@@ -416,9 +470,9 @@ OM_EMest_survey<-ggplot() +
 
 print(OM_EMest_survey)
 
-#ggsave("OM_EMest_survey.jpeg",
- #                  plot = OM_EMest_survey,
-  #               width = 10, height = 8, units = "in", dpi = 300)
+ggsave("sims/low/plots/OM_EMest_survey.jpeg",
+                  plot = OM_EMest_survey,
+               width = 10, height = 8, units = "in", dpi = 300)
        
        
 #boxplot catch prediction
@@ -441,9 +495,9 @@ catch_boxplot<- ggplot(all_catch_fits, aes(x = factor(year), y = log_pred_EM)) +
 
 print(catch_boxplot)
 
-#ggsave("catch_boxplot.jpeg",
-#                  plot = catch_boxplot,
-#               width = 10, height = 8, units = "in", dpi = 300)
+ggsave("sims/low/plots/catch_boxplot.jpeg",
+                  plot = catch_boxplot,
+               width = 10, height = 8, units = "in", dpi = 300)
 
 #boxplot survey prediction
 survey_boxplot<-ggplot(all_survey_fits, aes(x = factor(year), y = log_pred_EM)) +
@@ -454,9 +508,9 @@ survey_boxplot<-ggplot(all_survey_fits, aes(x = factor(year), y = log_pred_EM)) 
 
 print(survey_boxplot)
 
-#ggsave("survey_boxplot.jpeg",
-#       plot = survey_boxplot,
-#       width = 10, height = 8, units = "in", dpi = 300)
+ggsave("sims/low/plots/survey_boxplot.jpeg",
+       plot = survey_boxplot,
+       width = 10, height = 8, units = "in", dpi = 300)
 
 
 # estimated catch from 100 EM vs. observed true catch from the operating model (OM)
@@ -497,9 +551,9 @@ fleet3_plot <-ggplot(plot_data_catch, aes(x = year)) +
 
 print(fleet3_plot)
 
-#ggsave("fleet3_fitcatch_plot.jpeg",
-#      plot = fleet3_plot,
-#     width = 10, height = 8, units = "in", dpi = 300)
+ggsave("sims/low/plots/fleet3_fitcatch_plot.jpeg",
+      plot = fleet3_plot,
+     width = 10, height = 8, units = "in", dpi = 300)
 
 
 
@@ -551,7 +605,7 @@ survey_plot <- ggplot(plot_data_survey, aes(x = year)) +
 
 print(survey_plot)
 
-#ggsave("survey_fit_plot.jpeg", plot = survey_plot, width = 10, height = 8, units = "in", dpi = 300)
+ggsave("sims/low/plots/survey_fit_plot.jpeg", plot = survey_plot, width = 10, height = 8, units = "in", dpi = 300)
 
 #################
 #### PERFORMANCE METRICS
