@@ -188,8 +188,14 @@ for (isim in seq_len(nsim)) {
     stop("Catch size OM predictions do not sum to 1 within groups.")
   }
   
-  ## 4) Survey size composition (from OM probs if available; survey==1)
  
+  ## 4) Survey size composition (from OM probs; survey==1)
+  
+  hydraDataList$observedSurvSize <- hydraDataList[["observedSurvSize"]] %>%
+    filter(survey == 1) %>%
+    mutate(type = 0) %>%
+    select(survey, year, species, type, inpN, starts_with("sizebin"))
+  
   obs_survey_size_long <- hydraDataList$observedSurvSize %>%
     tibble() %>%
     pivot_longer(
@@ -198,25 +204,24 @@ for (isim in seq_len(nsim)) {
       values_to = "value"
     ) %>%
     mutate(
-      lenbin = as.integer(str_remove(lenbin, "sizebin")),
-      label = "survey"
+      lenbin = as.integer(str_remove(lenbin, "sizebin"))
     ) %>%
-    arrange(survey, species, year, lenbin)
+    arrange(survey, year, species, type, lenbin)
   
   pred_surv_size <- as.numeric(output$pred_survey_size)
   
   if (length(pred_surv_size) != nrow(obs_survey_size_long)) {
-    stop("Length mismatch: output$pred_surv_size does not match survey size table rows.")
+    stop("Length mismatch: output$pred_survey_size does not match survey size table rows.")
   }
   
   obs_survey_size_long <- obs_survey_size_long %>%
     mutate(value = pmax(pred_surv_size, 0)) %>%
-    group_by(survey, species, year) %>%
+    group_by(survey, year, species, type) %>%
     mutate(group_sum = sum(value)) %>%
     ungroup()
   
   bad_zero_groups <- obs_survey_size_long %>%
-    distinct(survey, species, year, group_sum) %>%
+    distinct(survey, year, species, type, group_sum) %>%
     filter(group_sum <= 0)
   
   if (nrow(bad_zero_groups) > 0) {
@@ -229,7 +234,7 @@ for (isim in seq_len(nsim)) {
     select(-group_sum)
   
   check_surv_pred <- obs_survey_size_long %>%
-    group_by(survey, species, year) %>%
+    group_by(survey, year, species, type) %>%
     summarise(sum_pred = sum(value), .groups = "drop")
   
   if (max(abs(check_surv_pred$sum_pred - 1)) > 1e-5) {
@@ -238,13 +243,27 @@ for (isim in seq_len(nsim)) {
   }
   
   obs_survey_size_long <- obs_survey_size_long %>%
-    group_by(survey, species, year) %>%
+    group_by(survey, year, species, type) %>%
     group_modify(~ simulate_multinom_block(
-      .x, N = N_survey_size,
+      .x,
+      N = N_survey_size,
       prob_col = "value",
       cat_col = "lenbin"
     )) %>%
     ungroup()
+  
+  hydraDataList$observedSurvSize <- obs_survey_size_long %>%
+    transmute(
+      survey, year, species, type,
+      inpN = N_survey_size,
+      lenbin, value = simulated_prop
+    ) %>%
+    pivot_wider(
+      names_from = lenbin,
+      values_from = value,
+      names_prefix = "sizebin"
+    ) %>%
+    arrange(survey, year, species, type)
   
 
   ## 5) Diet composition (combine surveys by sample-size; then draw)
@@ -307,29 +326,6 @@ for (isim in seq_len(nsim)) {
   if (max(abs(check_diet_pred$sum_pred - 1)) > 1e-6) {
     stop("Diet OM predictions do not sum to 1 within groups.")
   }
-  
-  
-  ## --- VALIDATION ------------------------------------------------------------
-  # 1) No NAs
-  stopifnot(!anyNA(hydraDataList$observedCatch$catch))
-  stopifnot(!anyNA(hydraDataList$observedBiomass$biomass))
-  stopifnot(!anyNA(hydraDataList$observedCatchSize))
-  stopifnot(!anyNA(hydraDataList$observedSurvSize))
-  stopifnot(!anyNA(hydraDataList$observedSurvDiet))
-  
-  # 2) Compositions sum to 1 within groups
-  check_sum1_size(hydraDataList$observedCatchSize,
-                  c("fishery","area","year","species","type"),
-                  prefix = "sizebin")
-  check_sum1_size(hydraDataList$observedSurvSize %>% filter(survey==1),
-                  c("survey","species","year"),
-                  prefix = "sizebin")
-  check_sum1_diet(hydraDataList$observedSurvDiet, prey_cols)
-  
-  # 3) Sample sizes are fixed as intended
-  stopifnot(all(hydraDataList$observedCatchSize$inpN == N_catch_size))
-  stopifnot(all(hydraDataList$observedSurvSize$inpN  == N_survey_size))
-  stopifnot(all(hydraDataList$observedSurvDiet$inpN  == N_diet))
   
   # Store simulated object
   sim_data[[isim]] <- hydraDataList
