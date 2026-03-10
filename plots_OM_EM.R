@@ -1,8 +1,8 @@
 #### RUN THE MODEL WITH 100 SIMS ####
-library(here)
-dir<-here()
-dir<-paste0(dir,"/","sims","/","initial")
-setwd(dir)
+#library(here)
+#dir<-here()
+#dir<-paste0(dir,"/","sims","/","low")
+#setwd(dir)
 
 #multiple calls to 'system()' given different folders/filenames.
 
@@ -10,13 +10,13 @@ setwd(dir)
 #system("cp sims/hydra_sim1-ts.dat sims/hydra_sim_GBself_5bin-ts.dat")
 #file.copy(from="sims/hydra_sim1-ts", to="sims/hydra_sim_GBself_5bin-ts")
 
-for (nsim in 1:100)
-{
-  file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
-  system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
-  file.copy(from = "hydra_sim.rep", to = paste0("rep/hydra_sim",nsim,".rep"))
-  file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
-}
+#for (nsim in 1:100)
+#{
+#  file.copy(from=paste0("hydra_sim",nsim,"-ts.dat"), to= "hydra_GBself_5bin_simdata-ts.dat", overwrite = TRUE)
+#  system("./hydra_sim -ind hydra_sim_GBself_5bin.dat -ainp hydra_sim_GBself_5bin.pin")
+#  file.copy(from = "hydra_sim.rep", to = paste0("rep/hydra_sim",nsim,".rep"))
+#  file.copy(from = "hydra_sim.par", to = paste0("par/hydra_sim",nsim,".par"))
+#}
 
 
 
@@ -28,9 +28,21 @@ source("R/gettables.R")
 
 library(ggforce)
 library(tidyverse)
-hydraDataList2 <- readRDS("sim_data.rds")
+hydraDataList2 <- readRDS("sims/low/sim_data.rds")
 
-#### PLOT SIM CATCH ####
+
+#READ FITS FROM RUNS WITH 100 DATA SETS
+rep_files_sim <- paste0("sims/low/rep/hydra_sim", 1:100, ".rep")
+
+# Read all rep files into a named list
+rep_simoutputs <- lapply(rep_files_sim, function(file) {
+  cat("Reading:", file, "\n")
+  reptoRlist(file)
+})
+
+
+
+
 
 sim_obs_catch<-purrr::map_dfr(hydraDataList2,"observedCatch",.id = "isim")
 sim_obs_catch<- sim_obs_catch %>%

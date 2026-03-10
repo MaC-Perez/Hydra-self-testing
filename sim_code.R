@@ -88,7 +88,7 @@ N_diet        <- 100   # diet proportions
 # Keep a pristine copy to reset each iteration
 hydraDataList0 <- hydraDataList
 
-repfile <- "OM_scenarios/OM_base/hydra_sim.rep"
+repfile <- "OM_scenarios/OM_low/hydra_sim.rep"
 output  <- reptoRlist(repfile)
 
 # Require OM-predicted composition vectors
@@ -332,7 +332,7 @@ for (isim in seq_len(nsim)) {
 }
 
 ## --- Optional: save simulations bundle ---------------------------------------
- saveRDS(sim_data, file = "sims/base/sim_data.rds")
+ saveRDS(sim_data, file = "sims/low/sim_data.rds")
 
 
 #### WRITE tsDat FUNCTION ####
@@ -340,11 +340,11 @@ source("R/write_tsDatFile.R")
 source("R/read.report.R")
 
 #read original observations (hydraDataList) and simulated data sets (hydraDataList2)
-hydraDataList2 <- readRDS("sims/base/sim_data.rds")
+hydraDataList2 <- readRDS("sims/low/sim_data.rds")
 
 
 listOfParameters<-list()
-listOfParameters$outDir<-paste0(getwd(),"/","sims","/","base","/")
+listOfParameters$outDir<-paste0(getwd(),"/","sims","/","low","/")
 listOfParameters$outputFilename<-"hydra_sim"
 listOfParameters$fillLength <- 2000
 
@@ -373,7 +373,7 @@ for (nsim in 1:100) {
 library(here)
 dir<-here()
 #dir<-paste0(dir,"/","sims","/","initial")
-dir<-paste0(dir,"/","sims","/","base")
+dir<-paste0(dir,"/","sims","/","low")
 
 setwd(dir)
 
@@ -414,7 +414,7 @@ biorows <- dim(obs_surveyB)[1]
 catchrows <- dim(obs_catchB)[1]
 
 #READ FITS FROM OM
-OMrepfile <- "OM_scenarios/OM_low/hydra_sim.rep"
+OMrepfile <- "OM_scenarios/OM_base/hydra_sim.rep"
 OMoutput<-reptoRlist(OMrepfile)
 
 #pred_catch and pred_bio are my estimated values from the OM 
@@ -423,7 +423,7 @@ OM_catch <- indexfits[[2]]
 OM_survey <- indexfits[[1]]
 
 #READ FITS FROM RUNS WITH 100 DATA SETS
-rep_files_sim <- paste0("sims/low/rep/hydra_sim", 1:100, ".rep")
+rep_files_sim <- paste0("sims/base/rep/hydra_sim", 1:100, ".rep")
 #repfile <- "inputs/initial_run/hydra_sim.rep"
 
 # Read all rep files into a named list
@@ -432,6 +432,8 @@ rep_simoutputs <- lapply(rep_files_sim, function(file) {
   reptoRlist(file)
 })
 
+# SAVE THEM 
+saveRDS(rep_simoutputs, "sims/base/outputs/rep_simoutputs_base.rds")
 
 #############
 ### CATCH
